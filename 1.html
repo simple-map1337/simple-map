@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Мапа з цілями</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+html,body{height:100%;margin:0}
+#map{width:100%;height:100vh}
+.leaflet-left .leaflet-control{margin-left:10px;margin-top:10px}
+.leaflet-control-custom{
+  background:white;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,0.3);
+  width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:18px;transition:0.15s
+}
+.leaflet-control-custom:hover{background:#f0f0f0}
+.leaflet-control-custom.active{background:#cce5ff}
+.preview-icon{font-size:18px;opacity:0.8;transform-origin:center}
+
+#icon-menu {
+  position:absolute;top:10px;right:10px;
+  background:white;border-radius:10px;padding:10px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.25);z-index:1000;width:220px;
+}
+#icon-menu h4{margin:0 0 8px 0;font-size:14px}
+.icons-row{display:flex;gap:8px;flex-wrap:wrap}
+.icon-option { width:40px;height:40px;border-radius:6px; overflow:hidden; cursor:pointer; border:2px solid transparent; display:flex;align-items:center;justify-content:center; }
+.icon-option img{width:100%;height:100%;object-fit:contain}
+.icon-option.selected{border-color:#2b9cff; box-shadow:0 4px 12px rgba(43,156,255,0.18)}
+
+.menu-toggle{position:absolute;top:10px;right:10px;background:white;border-radius:8px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.2);cursor:pointer;z-index:1100}
+.menu-toggle:hover{background:#f0f0f0}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="menu-toggle" id="menuToggle">⚙️</div>
+<div id="icon-menu" style="display:none;">
+  <h4>Вибір іконки</h4>
+  <div class="icons-row" id="iconGrid">
+    <div class="icon-option" data-file="shahed" title="shahed"><img src="icons/shahed.png"></div>
+    <div class="icon-option" data-file="rocket" title="rocket"><img src="icons/rocket.png"></div>
+    <div class="icon-option" data-file="plane" title="plane"><img src="icons/plane.png"></div>
+    <div class="icon-option" data-file="kab" title="kab"><img src="icons/kab.png"></div>
+    <div class="icon-option" data-file="recon" title="recon"><img src="icons/recon.png"></div>
+    <div class="icon-option" data-file="ballistic" title="ballistic"><img src="icons/ballistic.png"></div>
+  </div>
+</div>
+
+<script>
+// === Map ===
+const map = L.map('map').setView([49.0,31.0],6);
+window.lightLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:18, attribution:'© OpenStreetMap',crossorigin:true,detectRetina:true,updateWhenIdle:false,keepBuffer:2
+}).addTo(map);
+
+// === State ===
+let mode = null, firstClickLatLng = null, previewMarker = null;
+const targets = [];
+
+// === Controls Add/Delete ===
+const AddControl = L.Control.extend({
+  options:{position:'topleft'},
+  onAdd(){ 
+    const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom');
+    el.innerHTML='➕';
+    L.DomEvent.on(el,'click',ev=>{
+      L.DomEvent.stopPropagation(ev); L.DomEvent.preventDefault(ev);
+      mode=(mode==='add')?null:'add';
+      el.classList.toggle('active');
+      if(deleteControlEl) deleteControlEl.classList.remove('active');
+      clearPreview();
+    });
+    return el;
+  }
+});
+const DeleteControl = L.Control.extend({
+  options:{position:'topleft'},
+  onAdd(){
+    const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom');
+    el.innerHTML='🗑️';
+    L.DomEvent.on(el,'click',ev=>{
+      L.DomEvent.stopPropagation(ev); L.DomEvent.preventDefault(ev);
+      mode=(mode==='delete')?null:'delete';
+      el.classList.toggle('active');
+      if(addControlEl) addControlEl.classList.remove('active');
+      clearPreview();
+    });
+    return el;
+  }
+});
+map.addControl(new AddControl());
+map.addControl(new DeleteControl());
+const addControlEl=document.querySelector('.leaflet-control-custom:nth-of-type(1)');
+const deleteControlEl=document.querySelector('.leaflet-control-custom:nth-of-type(2)');
+
+// === Utils ===
+function clearPreview(){ firstClickLatLng=null; if(previewMarker){map.removeLayer(previewMarker); previewMarker=null;} }
+function bearingDegrees(from,to){
+  const toRad=d=>d*Math.PI/180; const toDeg=r=>r*180/Math.PI;
+  const φ1=toRad(from.lat), φ2=toRad(to.lat), Δλ=toRad(to.lng-from.lng);
+  const y=Math.sin(Δλ)*Math.cos(φ2), x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  return (toDeg(Math.atan2(y,x))+360)%360;
+}
+
+// === Icon selection ===
+const ICON_LS='selectedIcon';
+let selectedIcon=localStorage.getItem(ICON_LS)||'shahed';
+const iconOptions=document.querySelectorAll('#iconGrid .icon-option');
+function refreshIconUI(){ iconOptions.forEach(n=>n.classList.toggle('selected',n.dataset.file===selectedIcon)); }
+iconOptions.forEach(n=>{
+  n.addEventListener('click',()=>{ selectedIcon=n.dataset.file; localStorage.setItem(ICON_LS,selectedIcon); refreshIconUI(); menu.style.display='none'; });
+});
+refreshIconUI();
+
+// === Menu toggle ===
+const menuToggle=document.getElementById('menuToggle');
+const menu=document.getElementById('icon-menu');
+menuToggle.addEventListener('click',()=>{ menu.style.display=(menu.style.display==='none'?'block':'none'); });
+
+// === Create target ===
+function createTarget(positionLatLng, bearingDeg){
+  // иконка повернута влево (270°), плюс корректировка курса на 180° чтобы «вверх» = вверх
+  const adjustedBearing = (bearingDeg + 270 + 180) % 360;
+
+  const iconUrl = `icons/${selectedIcon}.png`; // выбранная иконка
+  const icon = L.divIcon({
+    className: 'target-icon',
+    html: `<img src="${iconUrl}" style="width:24px;height:24px;transform:rotate(${adjustedBearing}deg);transform-origin:center;">`,
+    iconSize: [24,24],
+    iconAnchor: [12,12]
+  });
+
+  const marker = L.marker(positionLatLng,{icon,interactive:true}).addTo(map);
+
+  marker.on('click',()=>{ 
+    if(mode==='delete'){ 
+      map.removeLayer(marker); 
+      const idx=targets.indexOf(marker); 
+      if(idx!==-1) targets.splice(idx,1); 
+    } 
+  });
+
+  targets.push(marker);
+}
+
+// === Map click ===
+map.on('click',e=>{
+  if(mode==='add'){
+    if(!firstClickLatLng){
+      firstClickLatLng=e.latlng;
+      previewMarker=L.marker(firstClickLatLng,{icon:L.divIcon({html:'<div style="font-size:18px">📍</div>',iconSize:[18,18],iconAnchor:[9,9]}),interactive:false}).addTo(map);
+    } else {
+      const bearing=bearingDegrees(firstClickLatLng,e.latlng);
+      createTarget(firstClickLatLng,bearing);
+      clearPreview();
+    }
+  }
+});
+
+document.addEventListener('keydown',ev=>{
+  if(ev.key==='Escape'){ mode=null; addControlEl.classList.remove('active'); deleteControlEl.classList.remove('active'); clearPreview(); }
+});
+</script>
+</body>
+</html>
