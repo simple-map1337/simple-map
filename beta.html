@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Мапа — цілі</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+html,body{height:100%;margin:0}
+#map{width:100%;height:100vh}
+.leaflet-left .leaflet-control{margin-left:10px;margin-top:10px}
+.leaflet-control-custom{
+  background:white;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,0.3);
+  width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:18px;transition:0.15s
+}
+.leaflet-control-custom:hover{background:#f0f0f0}
+.leaflet-control-custom.active{background:#cce5ff}
+.preview-icon{font-size:18px;opacity:0.8;transform-origin:center}
+#iconMenu{
+  position:absolute;top:10px;right:10px;z-index:1000;
+  background:white;padding:10px;border-radius:8px;
+  box-shadow:0 1px 5px rgba(0,0,0,0.3);
+  display:none;flex-direction:column;gap:4px;
+  font-family:sans-serif;font-size:14px;
+}
+#iconMenu img{width:28px;height:28px;cursor:pointer;transition:0.15s}
+#iconMenu img:hover{transform:scale(1.1)}
+#speedInput{
+  width:100%;padding:4px;margin-top:6px;
+  border:1px solid #ccc;border-radius:6px;font-size:14px
+}
+#toggleMenu{
+  position:absolute;top:10px;right:10px;z-index:1001;
+  background:white;color:black;border:1px solid #ccc;border-radius:6px;
+  width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<button id="toggleMenu">⚙</button>
+
+<div id="iconMenu">
+  <b>Іконка</b>
+  <div>
+    <img src="icons/shahed.png" data-icon="icons/shahed.png" title="Шахед">
+    <img src="icons/rocket.png" data-icon="icons/rocket.png" title="Ракета">
+    <img src="icons/plane.png" data-icon="icons/plane.png" title="Літак">
+    <img src="icons/kab.png" data-icon="icons/kab.png" title="КАБ">
+    <img src="icons/recon.png" data-icon="icons/recon.png" title="Розвідник">
+    <img src="icons/ballistic.png" data-icon="icons/ballistic.png" title="Балістична">
+  </div>
+  <b>Швидкість (км/год)</b>
+  <input type="number" id="speedInput" min="0" max="100000" placeholder="Введи вручну">
+</div>
+
+<script>
+const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([49.0, 31.0], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18,
+  attribution: '',
+  detectRetina: true,
+  updateWhenIdle: false,
+  keepBuffer: 2,
+  className: 'ukraine-map-tiles light-theme'
+}).addTo(map);
+
+let mode = null;
+let firstClickLatLng = null;
+let previewMarker = null;
+let selectedIcon = 'icons/shahed.png';
+let selectedSpeed = 0;
+const targets = [];
+
+function bearingDegrees(fromLatLng,toLatLng){
+  const toRad = d=>d*Math.PI/180;
+  const toDeg = r=>r*180/Math.PI;
+  const φ1=toRad(fromLatLng.lat);
+  const φ2=toRad(toLatLng.lat);
+  const Δλ=toRad(toLatLng.lng - fromLatLng.lng);
+  const y=Math.sin(Δλ)*Math.cos(φ2);
+  const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  return (toDeg(Math.atan2(y,x))+360)%360;
+}
+
+// Контролы
+const AddControl=L.Control.extend({options:{position:'topleft'},onAdd(){ 
+  const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom'); 
+  el.innerHTML='➕';
+  el.title='Додати ціль';
+  L.DomEvent.on(el,'click',ev=>{
+    L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
+    mode=(mode==='add')?null:'add';el.classList.toggle('active');
+    if(deleteControlEl) deleteControlEl.classList.remove('active');clearPreview();
+  });
+  return el;
+}});
+const DeleteControl=L.Control.extend({options:{position:'topleft'},onAdd(){
+  const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom');
+  el.innerHTML='🗑️';el.title='Видалити ціль';
+  L.DomEvent.on(el,'click',ev=>{
+    L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
+    mode=(mode==='delete')?null:'delete';el.classList.toggle('active');
+    if(addControlEl) addControlEl.classList.remove('active');clearPreview();
+  });
+  return el;
+}});
+map.addControl(new AddControl());
+map.addControl(new DeleteControl());
+const addControlEl=document.querySelector('.leaflet-control-custom:nth-of-type(1)');
+const deleteControlEl=document.querySelector('.leaflet-control-custom:nth-of-type(2)');
+
+function clearPreview(){firstClickLatLng=null;if(previewMarker){map.removeLayer(previewMarker);previewMarker=null;}}
+
+// Создать цель с движением
+function createTarget(positionLatLng,bearingDeg){
+  const icon=L.divIcon({
+    className:'target-icon',
+    html:`<img src="${selectedIcon}" style="width:28px;height:28px;transform:rotate(${bearingDeg}deg);transform-origin:center center;">`,
+    iconSize:[28,28],
+    iconAnchor:[14,14]
+  });
+  const marker=L.marker(positionLatLng,{icon}).addTo(map);
+  marker._course=bearingDeg;
+  marker._speedKmph=selectedSpeed||0;
+  marker._moving=marker._speedKmph>0;
+  marker._currentPos=positionLatLng;
+  marker.on('click',()=>{
+    if(mode==='delete'){
+      const idx=targets.indexOf(marker);
+      if(idx!==-1)targets.splice(idx,1);
+      map.removeLayer(marker);
+    }
+  });
+  targets.push(marker);
+}
+
+// Клик по карте
+map.on('click',e=>{
+  if(mode==='add'){
+    if(!firstClickLatLng){
+      firstClickLatLng=e.latlng;
+      previewMarker=L.marker(firstClickLatLng,{icon:L.divIcon({className:'preview-icon',html:'📍',iconSize:[18,18],iconAnchor:[9,9]}),interactive:false}).addTo(map);
+    } else{
+      const bearing=bearingDegrees(firstClickLatLng,e.latlng);
+      createTarget(firstClickLatLng,bearing);
+      clearPreview();
+    }
+  }
+});
+
+// Выбор иконки и скорости
+document.querySelectorAll('#iconMenu img').forEach(img=>{img.addEventListener('click',()=>{selectedIcon=img.dataset.icon;});});
+document.getElementById('speedInput').addEventListener('input',e=>{selectedSpeed=Math.min(parseFloat(e.target.value)||0,100000);});
+
+// Кнопка открытия меню (квадратная белая)
+const toggleMenu=document.getElementById('toggleMenu');
+const iconMenu=document.getElementById('iconMenu');
+toggleMenu.onclick=()=>{iconMenu.style.display=(iconMenu.style.display==='none'?'flex':'none');};
+
+// Цикл движения целей (интервал 666 мс)
+const MOVE_TICK_MS=666;
+function metersToLat(m){return m/111320;}
+function metersToLng(m,lat){return m/(111320*Math.cos(lat*Math.PI/180));}
+setInterval(()=>{
+  if(!targets||targets.length===0)return;
+  const dt=MOVE_TICK_MS/1000;
+  targets.forEach(m=>{
+    if(!m._moving||m._speedKmph<=0)return;
+    const speedMs=(m._speedKmph*1000)/3600;
+    const dist=speedMs*dt;
+    const theta=m._course*Math.PI/180;
+    const dy=Math.cos(theta)*dist;
+    const dx=Math.sin(theta)*dist;
+    const pos=m.getLatLng();
+    const newLat=pos.lat+metersToLat(dy);
+    const newLng=pos.lng+metersToLng(dx,pos.lat);
+    m._currentPos=L.latLng(newLat,newLng);
+    m.setLatLng(m._currentPos);
+  });
+},MOVE_TICK_MS);
+</script>
+</body>
+</html>
