@@ -76,6 +76,7 @@ let firstClickLatLng = null;
 let previewMarker = null;
 let selectedIcon = 'icons/shahed.png';
 let selectedSpeed = 0;
+let selectedTarget = null;
 const targets = [];
 
 function bearingDegrees(fromLatLng,toLatLng){
@@ -97,7 +98,9 @@ const AddControl=L.Control.extend({options:{position:'topleft'},onAdd(){
   L.DomEvent.on(el,'click',ev=>{
     L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
     mode=(mode==='add')?null:'add';el.classList.toggle('active');
-    if(deleteControlEl) deleteControlEl.classList.remove('active');clearPreview();
+    if(deleteControlEl) deleteControlEl.classList.remove('active');
+    if(courseControlEl) courseControlEl.classList.remove('active');
+    clearPreview();
   });
   return el;
 }});
@@ -107,14 +110,31 @@ const DeleteControl=L.Control.extend({options:{position:'topleft'},onAdd(){
   L.DomEvent.on(el,'click',ev=>{
     L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
     mode=(mode==='delete')?null:'delete';el.classList.toggle('active');
-    if(addControlEl) addControlEl.classList.remove('active');clearPreview();
+    if(addControlEl) addControlEl.classList.remove('active');
+    if(courseControlEl) courseControlEl.classList.remove('active');
+    clearPreview();
+  });
+  return el;
+}});
+const CourseControl=L.Control.extend({options:{position:'topleft'},onAdd(){
+  const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom');
+  el.innerHTML='🧭';el.title='Змінити курс';
+  L.DomEvent.on(el,'click',ev=>{
+    L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
+    mode=(mode==='course')?null:'course';el.classList.toggle('active');
+    if(addControlEl) addControlEl.classList.remove('active');
+    if(deleteControlEl) deleteControlEl.classList.remove('active');
+    clearPreview();
+    selectedTarget=null;
   });
   return el;
 }});
 map.addControl(new AddControl());
 map.addControl(new DeleteControl());
+map.addControl(new CourseControl());
 const addControlEl=document.querySelector('.leaflet-control-custom:nth-of-type(1)');
 const deleteControlEl=document.querySelector('.leaflet-control-custom:nth-of-type(2)');
+const courseControlEl=document.querySelector('.leaflet-control-custom:nth-of-type(3)');
 
 function clearPreview(){firstClickLatLng=null;if(previewMarker){map.removeLayer(previewMarker);previewMarker=null;}}
 
@@ -136,6 +156,10 @@ function createTarget(positionLatLng,bearingDeg){
       const idx=targets.indexOf(marker);
       if(idx!==-1)targets.splice(idx,1);
       map.removeLayer(marker);
+    } else if(mode==='course'){
+      if(selectedTarget) selectedTarget.getElement().style.filter='';
+      selectedTarget=marker;
+      marker.getElement().style.filter='drop-shadow(0 0 4px blue)';
     }
   });
   targets.push(marker);
@@ -152,6 +176,19 @@ map.on('click',e=>{
       createTarget(firstClickLatLng,bearing);
       clearPreview();
     }
+  } else if(mode==='course' && selectedTarget){
+    const newBearing=bearingDegrees(selectedTarget.getLatLng(),e.latlng);
+    selectedTarget._course=newBearing;
+    selectedTarget.setIcon(L.divIcon({
+      className:'target-icon',
+      html:`<img src="${selectedTarget._icon.options.html.match(/src="([^"]+)"/)[1]}" style="width:28px;height:28px;transform:rotate(${newBearing}deg);transform-origin:center center;">`,
+      iconSize:[28,28],
+      iconAnchor:[14,14]
+    }));
+    selectedTarget.getElement().style.filter='';
+    selectedTarget=null;
+    mode=null;
+    courseControlEl.classList.remove('active');
   }
 });
 
@@ -164,8 +201,8 @@ const toggleMenu=document.getElementById('toggleMenu');
 const iconMenu=document.getElementById('iconMenu');
 toggleMenu.onclick=()=>{iconMenu.style.display=(iconMenu.style.display==='none'?'flex':'none');};
 
-// Цикл движения целей (интервал 666 мс)
-const MOVE_TICK_MS=666;
+// Цикл движения цілей (інтервал 1 мс)
+const MOVE_TICK_MS=1;
 function metersToLat(m){return m/111320;}
 function metersToLng(m,lat){return m/(111320*Math.cos(lat*Math.PI/180));}
 setInterval(()=>{
