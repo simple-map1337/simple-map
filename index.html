@@ -214,7 +214,7 @@ const iconMenu=document.getElementById('iconMenu');
 toggleMenu.onclick=()=>{iconMenu.style.display=(iconMenu.style.display==='none'?'flex':'none');};
 
 // === Движение целей ===
-const MOVE_TICK_MS=500;
+const MOVE_TICK_MS=1;
 function metersToLat(m){return m/111320;}
 function metersToLng(m,lat){return m/(111320*Math.cos(lat*Math.PI/180));}
 setInterval(()=>{
