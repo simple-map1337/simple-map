@@ -99,7 +99,11 @@ const AddControl=L.Control.extend({options:{position:'topleft'},onAdd(){
     L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
     mode=(mode==='add')?null:'add';el.classList.toggle('active');
     if(deleteControlEl) deleteControlEl.classList.remove('active');
-    if(courseControlEl) courseControlEl.classList.remove('active');
+    if(courseControlEl) {
+      courseControlEl.classList.remove('active');
+      if(selectedTarget && selectedTarget.getElement()) selectedTarget.getElement().style.filter='';
+      selectedTarget=null;
+    }
     clearPreview();
   });
   return el;
@@ -111,7 +115,11 @@ const DeleteControl=L.Control.extend({options:{position:'topleft'},onAdd(){
     L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
     mode=(mode==='delete')?null:'delete';el.classList.toggle('active');
     if(addControlEl) addControlEl.classList.remove('active');
-    if(courseControlEl) courseControlEl.classList.remove('active');
+    if(courseControlEl) {
+      courseControlEl.classList.remove('active');
+      if(selectedTarget && selectedTarget.getElement()) selectedTarget.getElement().style.filter='';
+      selectedTarget=null;
+    }
     clearPreview();
   });
   return el;
@@ -124,8 +132,11 @@ const CourseControl=L.Control.extend({options:{position:'topleft'},onAdd(){
     mode=(mode==='course')?null:'course';el.classList.toggle('active');
     if(addControlEl) addControlEl.classList.remove('active');
     if(deleteControlEl) deleteControlEl.classList.remove('active');
+    if(mode!=='course' && selectedTarget && selectedTarget.getElement()) {
+      selectedTarget.getElement().style.filter='';
+      selectedTarget=null;
+    }
     clearPreview();
-    selectedTarget=null;
   });
   return el;
 }});
@@ -151,17 +162,20 @@ function createTarget(positionLatLng,bearingDeg){
   marker._speedKmph=selectedSpeed||0;
   marker._moving=marker._speedKmph>0;
   marker._currentPos=positionLatLng;
+  marker._iconPath=selectedIcon;
+
   marker.on('click',()=>{
     if(mode==='delete'){
       const idx=targets.indexOf(marker);
       if(idx!==-1)targets.splice(idx,1);
       map.removeLayer(marker);
     } else if(mode==='course'){
-      if(selectedTarget) selectedTarget.getElement().style.filter='';
+      if(selectedTarget && selectedTarget.getElement()) selectedTarget.getElement().style.filter='';
       selectedTarget=marker;
       marker.getElement().style.filter='drop-shadow(0 0 4px blue)';
     }
   });
+
   targets.push(marker);
 }
 
@@ -179,12 +193,16 @@ map.on('click',e=>{
   } else if(mode==='course' && selectedTarget){
     const newBearing=bearingDegrees(selectedTarget.getLatLng(),e.latlng);
     selectedTarget._course=newBearing;
+
+    // обновляем иконку с новым углом
     selectedTarget.setIcon(L.divIcon({
       className:'target-icon',
-      html:`<img src="${selectedTarget._icon.options.html.match(/src="([^"]+)"/)[1]}" style="width:28px;height:28px;transform:rotate(${newBearing}deg);transform-origin:center center;">`,
+      html:`<img src="${selectedTarget._iconPath}" style="width:28px;height:28px;transform:rotate(${newBearing}deg);transform-origin:center center;">`,
       iconSize:[28,28],
       iconAnchor:[14,14]
     }));
+
+    // очистка выделения и выход из режима
     selectedTarget.getElement().style.filter='';
     selectedTarget=null;
     mode=null;
@@ -192,16 +210,16 @@ map.on('click',e=>{
   }
 });
 
-// Выбор иконки и скорости
+// Выбор іконки та швидкості
 document.querySelectorAll('#iconMenu img').forEach(img=>{img.addEventListener('click',()=>{selectedIcon=img.dataset.icon;});});
 document.getElementById('speedInput').addEventListener('input',e=>{selectedSpeed=Math.min(parseFloat(e.target.value)||0,100000);});
 
-// Кнопка открытия меню (квадратная белая)
+// Кнопка відкриття меню ⚙️
 const toggleMenu=document.getElementById('toggleMenu');
 const iconMenu=document.getElementById('iconMenu');
 toggleMenu.onclick=()=>{iconMenu.style.display=(iconMenu.style.display==='none'?'flex':'none');};
 
-// Цикл движения цілей (інтервал 1 мс)
+// Рух цілей (інтервал 1 мс)
 const MOVE_TICK_MS=1;
 function metersToLat(m){return m/111320;}
 function metersToLng(m,lat){return m/(111320*Math.cos(lat*Math.PI/180));}
