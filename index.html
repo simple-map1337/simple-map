@@ -90,7 +90,7 @@ function bearingDegrees(fromLatLng,toLatLng){
   return (toDeg(Math.atan2(y,x))+360)%360;
 }
 
-// Контролы
+// === Контроли ===
 const AddControl=L.Control.extend({options:{position:'topleft'},onAdd(){ 
   const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom'); 
   el.innerHTML='➕';
@@ -129,10 +129,12 @@ const CourseControl=L.Control.extend({options:{position:'topleft'},onAdd(){
   el.innerHTML='🧭';el.title='Змінити курс';
   L.DomEvent.on(el,'click',ev=>{
     L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
-    mode=(mode==='course')?null:'course';el.classList.toggle('active');
+    // переключение режима
+    const isActive = el.classList.toggle('active');
+    mode = isActive ? 'course' : null;
     if(addControlEl) addControlEl.classList.remove('active');
     if(deleteControlEl) deleteControlEl.classList.remove('active');
-    if(mode!=='course' && selectedTarget && selectedTarget.getElement()) {
+    if(!isActive && selectedTarget && selectedTarget.getElement()) {
       selectedTarget.getElement().style.filter='';
       selectedTarget=null;
     }
@@ -149,7 +151,7 @@ const courseControlEl=document.querySelector('.leaflet-control-custom:nth-of-typ
 
 function clearPreview(){firstClickLatLng=null;if(previewMarker){map.removeLayer(previewMarker);previewMarker=null;}}
 
-// Создать цель с движением
+// === Создать цель ===
 function createTarget(positionLatLng,bearingDeg){
   const icon=L.divIcon({
     className:'target-icon',
@@ -179,7 +181,7 @@ function createTarget(positionLatLng,bearingDeg){
   targets.push(marker);
 }
 
-// Клик по карте
+// === Клик по карте ===
 map.on('click',e=>{
   if(mode==='add'){
     if(!firstClickLatLng){
@@ -201,26 +203,18 @@ map.on('click',e=>{
       iconSize:[28,28],
       iconAnchor:[14,14]
     }));
-
-    // очистка выделения и выход из режима
-    selectedTarget.getElement().style.filter='';
-    selectedTarget=null;
-    mode=null;
-    courseControlEl.classList.remove('active');
   }
 });
 
-// Выбор іконки та швидкості
+// === Меню ===
 document.querySelectorAll('#iconMenu img').forEach(img=>{img.addEventListener('click',()=>{selectedIcon=img.dataset.icon;});});
 document.getElementById('speedInput').addEventListener('input',e=>{selectedSpeed=Math.min(parseFloat(e.target.value)||0,100000);});
-
-// Кнопка відкриття меню ⚙️
 const toggleMenu=document.getElementById('toggleMenu');
 const iconMenu=document.getElementById('iconMenu');
 toggleMenu.onclick=()=>{iconMenu.style.display=(iconMenu.style.display==='none'?'flex':'none');};
 
-// Рух цілей (інтервал 1 мс)
-const MOVE_TICK_MS=1;
+// === Движение целей ===
+const MOVE_TICK_MS=500;
 function metersToLat(m){return m/111320;}
 function metersToLng(m,lat){return m/(111320*Math.cos(lat*Math.PI/180));}
 setInterval(()=>{
