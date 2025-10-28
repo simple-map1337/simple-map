@@ -518,12 +518,12 @@ setInterval(()=>{
   });
 }, MOVE_TICK_MS);
 
-/* === AUTOSAVE - периодическое сохранение каждые 5 секунд === */
+/* === AUTOSAVE - периодическое сохранение каждые 333 миллисекунды === */
 setInterval(() => {
   if (targets.length > 0) {
     saveTargetsToStorage();
   }
-}, 5000);
+}, 333);
 
 /* === LOAD TARGETS ON PAGE LOAD === */
 document.addEventListener('DOMContentLoaded', function() {
