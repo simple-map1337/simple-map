@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>tg: @klunat1kk</title>
+<title>Мапа — цілі</title>
 
 <!-- Leaflet -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -120,6 +120,99 @@ const trajSettings = {
   opacity: 0.9
 };
 
+/* === LOCAL STORAGE FUNCTIONS === */
+function saveTargetsToStorage() {
+  const data = targets.map(target => {
+    // Сохраняем только основные данные цели
+    return {
+      lat: target.getLatLng().lat,
+      lng: target.getLatLng().lng,
+      course: target._course,
+      speed: target._speedKmph,
+      icon: target._iconPath,
+      // Сохраняем траекторию
+      trajectory: target._polyline ? target._polyline.getLatLngs() : []
+    };
+  });
+  localStorage.setItem('mapTargets', JSON.stringify(data));
+  console.log('Цілі збережено:', data.length);
+}
+
+function loadTargetsFromStorage() {
+  const saved = localStorage.getItem('mapTargets');
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
+      data.forEach(targetData => {
+        // Восстанавливаем цель
+        const latLng = L.latLng(targetData.lat, targetData.lng);
+        restoreTarget(latLng, targetData.course, targetData.speed, targetData.icon, targetData.trajectory);
+      });
+      console.log('Цілі відновлено:', data.length);
+    } catch (e) {
+      console.error('Помилка відновлення цілей:', e);
+    }
+  }
+}
+
+function restoreTarget(positionLatLng, bearingDeg, speed, iconPath, trajectory) {
+  const icon = L.divIcon({
+    className: 'target-icon',
+    html: `<img src="${iconPath}" style="width:28px;height:28px;transform:rotate(${bearingDeg}deg);transform-origin:center center;">`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14]
+  });
+  
+  const marker = L.marker(positionLatLng, { icon }).addTo(map);
+  marker._course = bearingDeg;
+  marker._speedKmph = speed || 0;
+  marker._moving = marker._speedKmph > 0;
+  marker._currentPos = positionLatLng;
+  marker._iconPath = iconPath;
+
+  // Восстанавливаем траекторию
+  const polyline = L.polyline(trajectory.length > 0 ? trajectory : [positionLatLng], getPolylineOptions());
+  marker._polyline = polyline;
+  
+  if (showAllTrajectories) polyline.addTo(map);
+
+  // Обработчик клика (такой же как в createTarget)
+  marker.on('click', () => {
+    if (mode === 'delete') {
+      if (marker._polyline) {
+        if (map.hasLayer(marker._polyline)) map.removeLayer(marker._polyline);
+        marker._polyline = null;
+      }
+      const idx = targets.indexOf(marker);
+      if (idx !== -1) targets.splice(idx, 1);
+      map.removeLayer(marker);
+      saveTargetsToStorage(); // Сохраняем после удаления
+    } else if (mode === 'course') {
+      if (selectedTarget && selectedTarget.getElement()) selectedTarget.getElement().style.filter = '';
+      selectedTarget = marker;
+      marker.getElement().style.filter = 'drop-shadow(0 0 4px blue)';
+      if (trajSelEl && trajSelEl.classList.contains('active')) {
+        if (marker._polyline && !map.hasLayer(marker._polyline)) map.addLayer(marker._polyline);
+      }
+    } else if (mode === 'speed') {
+      if (selectedTarget && selectedTarget.getElement()) selectedTarget.getElement().style.filter = '';
+      selectedTarget = marker;
+      marker.getElement().style.filter = 'drop-shadow(0 0 4px blue)';
+      const newSpeed = prompt("Введіть нову швидкість (км/год):", marker._speedKmph);
+      if (newSpeed !== null) {
+        const sp = parseFloat(newSpeed);
+        if (!isNaN(sp)) {
+          marker._speedKmph = Math.max(0, Math.min(sp, 100000));
+          marker._moving = marker._speedKmph > 0;
+          saveTargetsToStorage(); // Сохраняем после изменения скорости
+        }
+      }
+    }
+  });
+
+  targets.push(marker);
+}
+
 /* helper: build polyline options from settings */
 function getPolylineOptions() {
   return {
@@ -222,13 +315,10 @@ const TrajAllControl=L.Control.extend({options:{position:'topleft'},onAdd(){
   L.DomEvent.on(el,'click',ev=>{
     L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
     const isActive = el.classList.toggle('active');
-    // toggle showAllTrajectories
     showAllTrajectories = isActive;
-    // apply to all polylines
     targets.forEach(t => {
       if(t._polyline){
         if(showAllTrajectories) {
-          // show (if currently hidden)
           if(!map.hasLayer(t._polyline)) map.addLayer(t._polyline);
         } else {
           if(map.hasLayer(t._polyline)) map.removeLayer(t._polyline);
@@ -295,45 +385,42 @@ function createTarget(positionLatLng,bearingDeg){
 
   marker.on('click',()=>{
     if(mode==='delete'){
-      // remove polyline if exists
       if(marker._polyline){
         if(map.hasLayer(marker._polyline)) map.removeLayer(marker._polyline);
-        // completely remove polyline object
         marker._polyline = null;
       }
       const idx=targets.indexOf(marker);
       if(idx!==-1) targets.splice(idx,1);
       map.removeLayer(marker);
+      saveTargetsToStorage(); // Сохраняем после удаления
     } else if(mode==='course'){
       if(selectedTarget && selectedTarget.getElement()) selectedTarget.getElement().style.filter='';
       selectedTarget=marker;
       marker.getElement().style.filter='drop-shadow(0 0 4px blue)';
-      // when selecting a target, update selected trajectory visibility toggle
       if(trajSelEl && trajSelEl.classList.contains('active')){
-        // ensure selected target's polyline is visible
         if(marker._polyline && !map.hasLayer(marker._polyline)) map.addLayer(marker._polyline);
       }
     } else if(mode==='speed'){
       if(selectedTarget && selectedTarget.getElement()) selectedTarget.getElement().style.filter='';
       selectedTarget=marker;
       marker.getElement().style.filter='drop-shadow(0 0 4px blue)';
-      // prompt for new speed
       const newSpeed = prompt("Введіть нову швидкість (км/год):", marker._speedKmph);
       if(newSpeed !== null){
         const sp = parseFloat(newSpeed);
         if(!isNaN(sp)){
           marker._speedKmph = Math.max(0, Math.min(sp, 100000));
           marker._moving = marker._speedKmph > 0;
+          saveTargetsToStorage(); // Сохраняем после изменения скорости
         }
       }
     }
   });
 
   targets.push(marker);
+  saveTargetsToStorage(); // Сохраняем после добавления новой цели
 }
 
-/* === map click handler integrates course change and add as before,
-       but also handles selected trajectory toggle visibility when selecting === */
+/* === map click handler integrates course change and add as before === */
 map.on('click',e=>{
   if(mode==='add'){
     if(!firstClickLatLng){
@@ -347,15 +434,14 @@ map.on('click',e=>{
   } else if(mode==='course' && selectedTarget){
     const newBearing=bearingDegrees(selectedTarget.getLatLng(),e.latlng);
     selectedTarget._course=newBearing;
-    // update displayed icon to rotate
     selectedTarget.setIcon(L.divIcon({
       className:'target-icon',
       html:`<img src="${selectedTarget._iconPath}" style="width:28px;height:28px;transform:rotate(${newBearing}deg);transform-origin:center center;">`,
       iconSize:[28,28],
       iconAnchor:[14,14]
     }));
-    // keep mode active (user requested persistent mode)
-    // ensure selected trajectory visibility toggle respected
+    saveTargetsToStorage(); // Сохраняем после изменения курса
+    
     if(trajSelEl && trajSelEl.classList.contains('active') && selectedTarget._polyline){
       if(!map.hasLayer(selectedTarget._polyline)) map.addLayer(selectedTarget._polyline);
     }
@@ -403,7 +489,7 @@ function updateAllPolylinesStyle(){
   });
 }
 
-/* === Movement loop: append to polyline latlngs as marker moves; remove polyline on deletion === */
+/* === Movement loop: append to polyline latlngs as marker moves === */
 const MOVE_TICK_MS = 1;
 function metersToLat(m){return m/111320;}
 function metersToLng(m,lat){return m/(111320*Math.cos(lat*Math.PI/180));}
@@ -427,14 +513,23 @@ setInterval(()=>{
     // append to polyline
     if(m._polyline){
       m._polyline.addLatLng(m._currentPos);
-      // respect global visibility: if showAllTrajectories is false, ensure line hidden
       if(!showAllTrajectories && map.hasLayer(m._polyline)) map.removeLayer(m._polyline);
     }
   });
 }, MOVE_TICK_MS);
 
-/* === When deleting a marker we already remove polyline in createTarget click handler.
-       But if you want to be safe when removing by other logic, ensure polyline removed too. === */
+/* === AUTOSAVE - периодическое сохранение каждые 5 секунд === */
+setInterval(() => {
+  if (targets.length > 0) {
+    saveTargetsToStorage();
+  }
+}, 5000);
+
+/* === LOAD TARGETS ON PAGE LOAD === */
+document.addEventListener('DOMContentLoaded', function() {
+  // Небольшая задержка чтобы карта успела инициализироваться
+  setTimeout(loadTargetsFromStorage, 100);
+});
 
 </script>
 </body>
