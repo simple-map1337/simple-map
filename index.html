@@ -490,7 +490,7 @@ function updateAllPolylinesStyle(){
 }
 
 /* === Movement loop: append to polyline latlngs as marker moves === */
-const MOVE_TICK_MS = 100;
+const MOVE_TICK_MS = 700;
 function metersToLat(m){return m/111320;}
 function metersToLng(m,lat){return m/(111320*Math.cos(lat*Math.PI/180));}
 
