@@ -100,6 +100,13 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   className: 'ukraine-map-tiles light-theme'
 }).addTo(map);
 
+/* === ОТКЛЮЧЕНИЕ ДВОЙНОГО КЛИКА ЗУМА === */
+map.doubleClickZoom.disable();
+map.on('dblclick', function(e) {
+    e.originalEvent.preventDefault();
+    e.originalEvent.stopPropagation();
+});
+
 let mode = null;
 let firstClickLatLng = null;
 let previewMarker = null;
@@ -123,10 +130,10 @@ const trajSettings = {
 /* === LOCAL STORAGE FUNCTIONS === */
 function saveTargetsToStorage() {
   const data = targets.map(target => {
-    // Сохраняем только основные данные цели
+    // ИСПРАВЛЕНИЕ: используем текущую позицию вместо начальной
     return {
-      lat: target.getLatLng().lat,
-      lng: target.getLatLng().lng,
+      lat: target._currentPos.lat,  // ← ИСПРАВЛЕНО!
+      lng: target._currentPos.lng,  // ← ИСПРАВЛЕНО!
       course: target._course,
       speed: target._speedKmph,
       icon: target._iconPath,
@@ -490,7 +497,7 @@ function updateAllPolylinesStyle(){
 }
 
 /* === Movement loop: append to polyline latlngs as marker moves === */
-const MOVE_TICK_MS = 700;
+const MOVE_TICK_MS = 1000;
 function metersToLat(m){return m/111320;}
 function metersToLng(m,lat){return m/(111320*Math.cos(lat*Math.PI/180));}
 
@@ -518,16 +525,15 @@ setInterval(()=>{
   });
 }, MOVE_TICK_MS);
 
-/* === AUTOSAVE - периодическое сохранение каждые 333 миллисекунды === */
+/* === AUTOSAVE - периодическое сохранение каждую секунду === */
 setInterval(() => {
   if (targets.length > 0) {
     saveTargetsToStorage();
   }
-}, 333);
+}, 1000);
 
 /* === LOAD TARGETS ON PAGE LOAD === */
 document.addEventListener('DOMContentLoaded', function() {
-  // Небольшая задержка чтобы карта успела инициализироваться
   setTimeout(loadTargetsFromStorage, 100);
 });
 
