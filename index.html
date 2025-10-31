@@ -56,6 +56,23 @@ html,body{height:100%;margin:0}
 .traj-row { display:flex; gap:6px; align-items:center; }
 .traj-row input[type="number"]{ width:60px; padding:4px; border-radius:4px; border:1px solid #ccc; }
 .traj-row label{ font-size:13px; }
+
+/* Стили для popup расчета расстояния */
+.distance-popup { text-align: center; }
+.distance-popup h3 { margin: 0 0 10px 0; font-size: 16px; }
+.distance-popup p { margin: 5px 0; font-size: 14px; }
+.distance-popup button {
+  margin-top: 10px;
+  padding: 6px 12px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.distance-popup button:hover {
+  background: #0056b3;
+}
 </style>
 </head>
 <body>
@@ -124,11 +141,108 @@ let selectedTarget = null;
 const targets = []; // markers
 /* === Конец оригинального кода === */
 
+/* === НОВАЯ ФУНКЦИЯ: Расчет расстояния и времени === */
+let calculateDistanceMode = false;
+let distanceMarker = null;
+
+function startCalculateDistance() {
+    if (calculateDistanceMode) {
+        // Завершаем режим
+        calculateDistanceMode = false;
+        calculateDistanceBtn.classList.remove('active');
+        
+        // Снимаем выделение с цели
+        if (selectedTarget && selectedTarget.getElement()) {
+            selectedTarget.getElement().style.filter = '';
+        }
+        selectedTarget = null;
+        
+        // Удаляем временный маркер
+        if (distanceMarker) {
+            map.removeLayer(distanceMarker);
+            distanceMarker = null;
+        }
+        
+    } else {
+        // Начинаем режим расчета расстояния
+        calculateDistanceMode = true;
+        calculateDistanceBtn.classList.add('active');
+        
+        // Сбрасываем другие режимы
+        mode = null;
+        quickTrajectoryMode = false;
+        quickTrajectoryBtn.classList.remove('active');
+        showSelectedTrajectoryMode = false;
+        trajSelEl.classList.remove('active');
+        document.querySelectorAll('.leaflet-control-custom').forEach(el => {
+            if(el !== calculateDistanceBtn) el.classList.remove('active');
+        });
+        
+        clearPreview();
+    }
+}
+
+// Функция расчета расстояния между двумя точками (в метрах)
+function calculateDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371000; // Радиус Земли в метрах
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+// Функция форматирования времени
+function formatTime(seconds) {
+    if (seconds < 60) {
+        return `${Math.round(seconds)} сек`;
+    } else if (seconds < 3600) {
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.round(seconds % 60);
+        return `${minutes} хв ${secs} сек`;
+    } else {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        return `${hours} год ${minutes} хв`;
+    }
+}
+
+// Функция создания popup с расчетами
+function createDistancePopup(targetPos, clickPos, target) {
+    const distance = calculateDistance(
+        targetPos.lat, targetPos.lng,
+        clickPos.lat, clickPos.lng
+    );
+    
+    const distanceKm = (distance / 1000).toFixed(2);
+    const distanceMiles = (distance / 1609.34).toFixed(2);
+    
+    let timeSeconds = 0;
+    if (target._speedKmph > 0) {
+        timeSeconds = (distance / 1000) / (target._speedKmph / 3600);
+    }
+    
+    const popupContent = `
+        <div class="distance-popup">
+            <h3>📐 Розрахунок</h3>
+            <p><strong>Відстань:</strong> ${distanceKm} км (${distanceMiles} миль)</p>
+            <p><strong>Час підльоту:</strong> ${target._speedKmph > 0 ? formatTime(timeSeconds) : 'Ціль зупинена'}</p>
+            <p><strong>Швидкість цілі:</strong> ${target._speedKmph} км/год</p>
+            <button onclick="this.parentElement.parentElement.closePopup()">Закрити</button>
+        </div>
+    `;
+    
+    return popupContent;
+}
+
 /* === НОВАЯ ФУНКЦИЯ: Быстрая траектория === */
 let quickTrajectoryMode = false;
 let quickTrajectoryPoints = [];
 let quickTrajectoryPolyline = null;
-let previousTargetSpeed = null; // Сохраняем скорость цели при начале рисования
+let previousTargetSpeed = null;
 
 function startQuickTrajectory() {
     if (quickTrajectoryMode) {
@@ -168,14 +282,17 @@ function startQuickTrajectory() {
         
         // Сбрасываем другие режимы
         mode = null;
-        clearPreview();
+        calculateDistanceMode = false;
+        calculateDistanceBtn.classList.remove('active');
+        showSelectedTrajectoryMode = false;
+        trajSelEl.classList.remove('active');
         document.querySelectorAll('.leaflet-control-custom').forEach(el => {
             if(el !== quickTrajectoryBtn && el !== trajSelEl) el.classList.remove('active');
         });
         
         // Останавливаем текущую цель (если есть) и сохраняем скорость
         if (selectedTarget) {
-            previousTargetSpeed = selectedTarget._speedKmph; // Сохраняем скорость
+            previousTargetSpeed = selectedTarget._speedKmph;
             selectedTarget._speedKmph = 0;
             selectedTarget._moving = false;
             selectedTarget.getElement().style.filter = 'drop-shadow(0 0 6px red)';
@@ -210,33 +327,30 @@ function applyQuickTrajectory() {
     selectedTarget.setLatLng(lastPoint);
     selectedTarget._currentPos = lastPoint;
     
-    // Обновляем курс (цель смотрит по направлению последнего клика)
+    // Обновляем курс
     selectedTarget._course = bearing;
     selectedTarget.setIcon(L.divIcon({
         className: 'target-icon',
-        html: `<img src="${selectedTarget._iconPath}" style="width:28px;height:28px;transform:rotate(${bearing}deg);transform-origin:center center;">`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
+        html: `<img src="${selectedTarget._iconPath}" style="width:20px;height:20px;transform:rotate(${bearing}deg);transform-origin:center center;">`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
     }));
     
-    // Останавливаем цель (не восстанавливаем скорость)
+    // Останавливаем цель
     selectedTarget._speedKmph = 0;
     selectedTarget._moving = false;
     
-    // Добавляем новую траекторию к существующей (не заменяем!)
+    // Добавляем новую траекторию к существующей
     if (selectedTarget._polyline) {
-        // Получаем текущие точки траектории
         const currentPoints = selectedTarget._polyline.getLatLngs();
-        // Добавляем новые точки (исключая первую, чтобы не дублировать)
         const newPoints = currentPoints.concat(quickTrajectoryPoints.slice(1));
         selectedTarget._polyline.setLatLngs(newPoints);
     } else {
-        // Создаем новую траекторию если её не было
         selectedTarget._polyline = L.polyline(quickTrajectoryPoints, getPolylineOptions());
         if (showAllTrajectories) selectedTarget._polyline.addTo(map);
     }
     
-    previousTargetSpeed = null; // Сбрасываем сохраненную скорость
+    previousTargetSpeed = null;
     saveTargetsToStorage();
 }
 
@@ -271,6 +385,8 @@ function toggleSelectedTrajectory() {
         mode = null;
         quickTrajectoryMode = false;
         quickTrajectoryBtn.classList.remove('active');
+        calculateDistanceMode = false;
+        calculateDistanceBtn.classList.remove('active');
         document.querySelectorAll('.leaflet-control-custom').forEach(el => {
             if(el !== trajSelEl) el.classList.remove('active');
         });
@@ -327,9 +443,9 @@ function loadTargetsFromStorage() {
 function restoreTarget(positionLatLng, bearingDeg, speed, iconPath, trajectory) {
   const icon = L.divIcon({
     className: 'target-icon',
-    html: `<img src="${iconPath}" style="width:28px;height:28px;transform:rotate(${bearingDeg}deg);transform-origin:center center;">`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14]
+    html: `<img src="${iconPath}" style="width:20px;height:20px;transform:rotate(${bearingDeg}deg);transform-origin:center center;">`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
   });
   
   const marker = L.marker(positionLatLng, { icon }).addTo(map);
@@ -345,11 +461,20 @@ function restoreTarget(positionLatLng, bearingDeg, speed, iconPath, trajectory) 
   if (showAllTrajectories && !showSelectedTrajectoryMode) polyline.addTo(map);
 
   marker.on('click', () => {
+    if (calculateDistanceMode) {
+        // Если в режиме расчета расстояния - выбираем цель
+        if (selectedTarget && selectedTarget.getElement()) {
+            selectedTarget.getElement().style.filter = '';
+        }
+        selectedTarget = marker;
+        marker.getElement().style.filter = 'drop-shadow(0 0 6px orange)';
+        return;
+    }
+    
     if (quickTrajectoryMode) {
         // Если в режиме быстрой траектории - переключаем цель
         if (selectedTarget && selectedTarget.getElement()) {
             selectedTarget.getElement().style.filter = '';
-            // Восстанавливаем скорость предыдущей цели
             if (previousTargetSpeed !== null) {
                 selectedTarget._speedKmph = previousTargetSpeed;
                 selectedTarget._moving = selectedTarget._speedKmph > 0;
@@ -358,12 +483,10 @@ function restoreTarget(positionLatLng, bearingDeg, speed, iconPath, trajectory) 
         selectedTarget = marker;
         marker.getElement().style.filter = 'drop-shadow(0 0 6px red)';
         
-        // Сохраняем и останавливаем новую выбранную цель
         previousTargetSpeed = selectedTarget._speedKmph;
         selectedTarget._speedKmph = 0;
         selectedTarget._moving = false;
         
-        // Начинаем новую траекторию для этой цели
         quickTrajectoryPoints = [selectedTarget.getLatLng()];
         if (quickTrajectoryPolyline) {
             quickTrajectoryPolyline.setLatLngs(quickTrajectoryPoints);
@@ -372,10 +495,8 @@ function restoreTarget(positionLatLng, bearingDeg, speed, iconPath, trajectory) 
     }
     
     if (showSelectedTrajectoryMode) {
-        // Если в режиме показа выбранной траектории
         if (selectedTarget && selectedTarget.getElement()) {
             selectedTarget.getElement().style.filter = '';
-            // Скрываем предыдущую траекторию
             if (selectedTarget._polyline && map.hasLayer(selectedTarget._polyline)) {
                 map.removeLayer(selectedTarget._polyline);
             }
@@ -383,7 +504,6 @@ function restoreTarget(positionLatLng, bearingDeg, speed, iconPath, trajectory) 
         selectedTarget = marker;
         marker.getElement().style.filter = 'drop-shadow(0 0 6px green)';
         
-        // Показываем траекторию выбранной цели
         if (selectedTarget._polyline && !map.hasLayer(selectedTarget._polyline)) {
             map.addLayer(selectedTarget._polyline);
         }
@@ -456,6 +576,8 @@ const AddControl=L.Control.extend({options:{position:'topleft'},onAdd(){
     });
     quickTrajectoryMode = false;
     quickTrajectoryBtn.classList.remove('active');
+    calculateDistanceMode = false;
+    calculateDistanceBtn.classList.remove('active');
     showSelectedTrajectoryMode = false;
     trajSelEl.classList.remove('active');
     if (selectedTarget && selectedTarget.getElement()) selectedTarget.getElement().style.filter = '';
@@ -474,6 +596,16 @@ const QuickTrajectoryControl=L.Control.extend({options:{position:'topleft'},onAd
   return el;
 }});
 
+const CalculateDistanceControl=L.Control.extend({options:{position:'topleft'},onAdd(){ 
+  const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom'); 
+  el.innerHTML='📏';el.title='Розрахувати відстань та час підльоту (виділіть ціль, клацніть по карті)';
+  L.DomEvent.on(el,'click',function(ev) {
+    L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
+    startCalculateDistance();
+  });
+  return el;
+}});
+
 const CourseControl=L.Control.extend({options:{position:'topleft'},onAdd(){
   const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom');
   el.innerHTML='🧭';el.title='Змінити курс';
@@ -486,6 +618,8 @@ const CourseControl=L.Control.extend({options:{position:'topleft'},onAdd(){
     });
     quickTrajectoryMode = false;
     quickTrajectoryBtn.classList.remove('active');
+    calculateDistanceMode = false;
+    calculateDistanceBtn.classList.remove('active');
     showSelectedTrajectoryMode = false;
     trajSelEl.classList.remove('active');
     if(!isActive && selectedTarget && selectedTarget.getElement()) {
@@ -508,6 +642,8 @@ const SpeedControl=L.Control.extend({options:{position:'topleft'},onAdd(){
     });
     quickTrajectoryMode = false;
     quickTrajectoryBtn.classList.remove('active');
+    calculateDistanceMode = false;
+    calculateDistanceBtn.classList.remove('active');
     showSelectedTrajectoryMode = false;
     trajSelEl.classList.remove('active');
     if(!isActive && selectedTarget && selectedTarget.getElement()){
@@ -529,6 +665,8 @@ const DeleteControl=L.Control.extend({options:{position:'topleft'},onAdd(){
     });
     quickTrajectoryMode = false;
     quickTrajectoryBtn.classList.remove('active');
+    calculateDistanceMode = false;
+    calculateDistanceBtn.classList.remove('active');
     showSelectedTrajectoryMode = false;
     trajSelEl.classList.remove('active');
     clearPreview();
@@ -569,6 +707,7 @@ const TrajSelControl=L.Control.extend({options:{position:'topleft'},onAdd(){
 // Добавляем контролы в новом порядке
 map.addControl(new AddControl());
 map.addControl(new QuickTrajectoryControl());
+map.addControl(new CalculateDistanceControl());
 map.addControl(new CourseControl());
 map.addControl(new SpeedControl());
 map.addControl(new DeleteControl());
@@ -577,18 +716,19 @@ map.addControl(new TrajSelControl());
 
 const addControlEl=document.querySelector('.leaflet-control-custom:nth-of-type(1)');
 const quickTrajectoryBtn=document.querySelector('.leaflet-control-custom:nth-of-type(2)');
-const courseControlEl=document.querySelector('.leaflet-control-custom:nth-of-type(3)');
-const speedControlEl=document.querySelector('.leaflet-control-custom:nth-of-type(4)');
-const deleteControlEl=document.querySelector('.leaflet-control-custom:nth-of-type(5)');
-const trajAllEl=document.querySelector('.leaflet-control-custom:nth-of-type(6)');
-const trajSelEl=document.querySelector('.leaflet-control-custom:nth-of-type(7)');
+const calculateDistanceBtn=document.querySelector('.leaflet-control-custom:nth-of-type(3)');
+const courseControlEl=document.querySelector('.leaflet-control-custom:nth-of-type(4)');
+const speedControlEl=document.querySelector('.leaflet-control-custom:nth-of-type(5)');
+const deleteControlEl=document.querySelector('.leaflet-control-custom:nth-of-type(6)');
+const trajAllEl=document.querySelector('.leaflet-control-custom:nth-of-type(7)');
+const trajSelEl=document.querySelector('.leaflet-control-custom:nth-of-type(8)');
 
 function createTarget(positionLatLng,bearingDeg){
   const icon=L.divIcon({
     className:'target-icon',
-    html:`<img src="${selectedIcon}" style="width:28px;height:28px;transform:rotate(${bearingDeg}deg);transform-origin:center center;">`,
-    iconSize:[28,28],
-    iconAnchor:[14,14]
+    html:`<img src="${selectedIcon}" style="width:20px;height:20px;transform:rotate(${bearingDeg}deg);transform-origin:center center;">`,
+    iconSize:[20,20],
+    iconAnchor:[10,10]
   });
   const marker=L.marker(positionLatLng,{icon}).addTo(map);
   marker._course=bearingDeg;
@@ -602,11 +742,18 @@ function createTarget(positionLatLng,bearingDeg){
   if(showAllTrajectories && !showSelectedTrajectoryMode) polyline.addTo(map);
 
   marker.on('click',()=>{
-    if (quickTrajectoryMode) {
-        // Если в режиме быстрой траектории - переключаем цель
+    if (calculateDistanceMode) {
         if (selectedTarget && selectedTarget.getElement()) {
             selectedTarget.getElement().style.filter = '';
-            // Восстанавливаем скорость предыдущей цели
+        }
+        selectedTarget = marker;
+        marker.getElement().style.filter = 'drop-shadow(0 0 6px orange)';
+        return;
+    }
+    
+    if (quickTrajectoryMode) {
+        if (selectedTarget && selectedTarget.getElement()) {
+            selectedTarget.getElement().style.filter = '';
             if (previousTargetSpeed !== null) {
                 selectedTarget._speedKmph = previousTargetSpeed;
                 selectedTarget._moving = selectedTarget._speedKmph > 0;
@@ -615,12 +762,10 @@ function createTarget(positionLatLng,bearingDeg){
         selectedTarget = marker;
         marker.getElement().style.filter = 'drop-shadow(0 0 6px red)';
         
-        // Сохраняем и останавливаем новую выбранную цель
         previousTargetSpeed = selectedTarget._speedKmph;
         selectedTarget._speedKmph = 0;
         selectedTarget._moving = false;
         
-        // Начинаем новую траекторию для этой цели
         quickTrajectoryPoints = [selectedTarget.getLatLng()];
         if (quickTrajectoryPolyline) {
             quickTrajectoryPolyline.setLatLngs(quickTrajectoryPoints);
@@ -629,10 +774,8 @@ function createTarget(positionLatLng,bearingDeg){
     }
     
     if (showSelectedTrajectoryMode) {
-        // Если в режиме показа выбранной траектории
         if (selectedTarget && selectedTarget.getElement()) {
             selectedTarget.getElement().style.filter = '';
-            // Скрываем предыдущую траекторию
             if (selectedTarget._polyline && map.hasLayer(selectedTarget._polyline)) {
                 map.removeLayer(selectedTarget._polyline);
             }
@@ -640,7 +783,6 @@ function createTarget(positionLatLng,bearingDeg){
         selectedTarget = marker;
         marker.getElement().style.filter = 'drop-shadow(0 0 6px green)';
         
-        // Показываем траекторию выбранной цели
         if (selectedTarget._polyline && !map.hasLayer(selectedTarget._polyline)) {
             map.addLayer(selectedTarget._polyline);
         }
@@ -682,8 +824,28 @@ function createTarget(positionLatLng,bearingDeg){
 
 /* === Обработчик кликов по карте === */
 map.on('click', function(e) {
+    if (calculateDistanceMode && selectedTarget) {
+        // Создаем popup с расчетами
+        const popupContent = createDistancePopup(
+            selectedTarget.getLatLng(),
+            e.latlng,
+            selectedTarget
+        );
+        
+        // Создаем временный маркер и popup
+        if (distanceMarker) {
+            map.removeLayer(distanceMarker);
+        }
+        
+        distanceMarker = L.marker(e.latlng)
+            .addTo(map)
+            .bindPopup(popupContent)
+            .openPopup();
+        
+        return;
+    }
+    
     if (quickTrajectoryMode && selectedTarget) {
-        // Добавляем точку траектории
         quickTrajectoryPoints.push(e.latlng);
         if (quickTrajectoryPolyline) {
             quickTrajectoryPolyline.setLatLngs(quickTrajectoryPoints);
@@ -695,7 +857,7 @@ map.on('click', function(e) {
     if(mode==='add'){
         if(!firstClickLatLng){
             firstClickLatLng=e.latlng;
-            previewMarker=L.marker(firstClickLatLng,{icon:L.divIcon({className:'preview-icon',html:'📍',iconSize:[18,18],iconAnchor:[9,9]}),interactive:false}).addTo(map);
+            previewMarker=L.marker(firstClickLatLng,{icon:L.divIcon({className:'preview-icon',html:'📍',iconSize:[16,16],iconAnchor:[8,8]}),interactive:false}).addTo(map);
         } else{
             const bearing=bearingDegrees(firstClickLatLng,e.latlng);
             createTarget(firstClickLatLng,bearing);
@@ -706,9 +868,9 @@ map.on('click', function(e) {
         selectedTarget._course=newBearing;
         selectedTarget.setIcon(L.divIcon({
             className:'target-icon',
-            html:`<img src="${selectedTarget._iconPath}" style="width:28px;height:28px;transform:rotate(${newBearing}deg);transform-origin:center center;">`,
-            iconSize:[28,28],
-            iconAnchor:[14,14]
+            html:`<img src="${selectedTarget._iconPath}" style="width:20px;height:20px;transform:rotate(${newBearing}deg);transform-origin:center center;">`,
+            iconSize:[20,20],
+            iconAnchor:[10,10]
         }));
         saveTargetsToStorage();
     }
