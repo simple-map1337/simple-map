@@ -56,6 +56,11 @@ html,body{height:100%;margin:0}
 .traj-row { display:flex; gap:6px; align-items:center; }
 .traj-row input[type="number"]{ width:60px; padding:4px; border-radius:4px; border:1px solid #ccc; }
 .traj-row label{ font-size:13px; }
+
+.target-icon {
+    margin-left: -10px !important;
+    margin-top: -10px !important;
+}
 </style>
 </head>
 <body>
@@ -215,8 +220,8 @@ function applyQuickTrajectory() {
     selectedTarget.setIcon(L.divIcon({
         className: 'target-icon',
         html: `<img src="${selectedTarget._iconPath}" style="width:28px;height:28px;transform:rotate(${bearing}deg);transform-origin:center center;">`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
     }));
     
     // Останавливаем цель (не восстанавливаем скорость)
@@ -328,8 +333,8 @@ function restoreTarget(positionLatLng, bearingDeg, speed, iconPath, trajectory) 
   const icon = L.divIcon({
     className: 'target-icon',
     html: `<img src="${iconPath}" style="width:28px;height:28px;transform:rotate(${bearingDeg}deg);transform-origin:center center;">`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14]
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
   });
   
   const marker = L.marker(positionLatLng, { icon }).addTo(map);
@@ -587,8 +592,8 @@ function createTarget(positionLatLng,bearingDeg){
   const icon=L.divIcon({
     className:'target-icon',
     html:`<img src="${selectedIcon}" style="width:28px;height:28px;transform:rotate(${bearingDeg}deg);transform-origin:center center;">`,
-    iconSize:[28,28],
-    iconAnchor:[14,14]
+    iconSize:[20,20],
+    iconAnchor:[10,10]
   });
   const marker=L.marker(positionLatLng,{icon}).addTo(map);
   marker._course=bearingDeg;
@@ -695,7 +700,7 @@ map.on('click', function(e) {
     if(mode==='add'){
         if(!firstClickLatLng){
             firstClickLatLng=e.latlng;
-            previewMarker=L.marker(firstClickLatLng,{icon:L.divIcon({className:'preview-icon',html:'📍',iconSize:[18,18],iconAnchor:[9,9]}),interactive:false}).addTo(map);
+            previewMarker=L.marker(firstClickLatLng,{icon:L.divIcon({className:'preview-icon',html:'📍',iconSize:[16,16],iconAnchor:[8,8]}),interactive:false}).addTo(map);
         } else{
             const bearing=bearingDegrees(firstClickLatLng,e.latlng);
             createTarget(firstClickLatLng,bearing);
@@ -707,8 +712,8 @@ map.on('click', function(e) {
         selectedTarget.setIcon(L.divIcon({
             className:'target-icon',
             html:`<img src="${selectedTarget._iconPath}" style="width:28px;height:28px;transform:rotate(${newBearing}deg);transform-origin:center center;">`,
-            iconSize:[28,28],
-            iconAnchor:[14,14]
+            iconSize:[20,20],
+            iconAnchor:[10,10]
         }));
         saveTargetsToStorage();
     }
