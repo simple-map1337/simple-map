@@ -215,8 +215,8 @@ function applyQuickTrajectory() {
     selectedTarget.setIcon(L.divIcon({
         className: 'target-icon',
         html: `<img src="${selectedTarget._iconPath}" style="width:28px;height:28px;transform:rotate(${bearing}deg);transform-origin:center center;">`,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10]
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
     }));
     
     // Останавливаем цель (не восстанавливаем скорость)
@@ -328,8 +328,8 @@ function restoreTarget(positionLatLng, bearingDeg, speed, iconPath, trajectory) 
   const icon = L.divIcon({
     className: 'target-icon',
     html: `<img src="${iconPath}" style="width:28px;height:28px;transform:rotate(${bearingDeg}deg);transform-origin:center center;">`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10]
+    iconSize: [28, 28],
+    iconAnchor: [14, 14]
   });
   
   const marker = L.marker(positionLatLng, { icon }).addTo(map);
@@ -587,8 +587,8 @@ function createTarget(positionLatLng,bearingDeg){
   const icon=L.divIcon({
     className:'target-icon',
     html:`<img src="${selectedIcon}" style="width:28px;height:28px;transform:rotate(${bearingDeg}deg);transform-origin:center center;">`,
-    iconSize:[20,20],
-    iconAnchor:[10,10]
+    iconSize:[28,28],
+    iconAnchor:[14,14]
   });
   const marker=L.marker(positionLatLng,{icon}).addTo(map);
   marker._course=bearingDeg;
@@ -707,8 +707,8 @@ map.on('click', function(e) {
         selectedTarget.setIcon(L.divIcon({
             className:'target-icon',
             html:`<img src="${selectedTarget._iconPath}" style="width:28px;height:28px;transform:rotate(${newBearing}deg);transform-origin:center center;">`,
-            iconSize:[20,20],
-            iconAnchor:[10,10]
+            iconSize:[28,28],
+            iconAnchor:[14,14]
         }));
         saveTargetsToStorage();
     }
