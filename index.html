@@ -61,6 +61,10 @@ html,body{height:100%;margin:0}
     margin-left: -10px !important;
     margin-top: -10px !important;
 }
+
+.target-icon img {
+    transform-origin: 10px 10px !important;
+}
 </style>
 </head>
 <body>
@@ -219,7 +223,7 @@ function applyQuickTrajectory() {
     selectedTarget._course = bearing;
     selectedTarget.setIcon(L.divIcon({
         className: 'target-icon',
-        html: `<img src="${selectedTarget._iconPath}" style="width:28px;height:28px;transform:rotate(${bearing}deg);transform-origin:center center;">`,
+        html: `<img src="${selectedTarget._iconPath}" style="width:28px;height:28px;transform:rotate(${bearing}deg);transform-origin:10px 10px;">`,
         iconSize: [20, 20],
         iconAnchor: [10, 10]
     }));
@@ -332,7 +336,7 @@ function loadTargetsFromStorage() {
 function restoreTarget(positionLatLng, bearingDeg, speed, iconPath, trajectory) {
   const icon = L.divIcon({
     className: 'target-icon',
-    html: `<img src="${iconPath}" style="width:28px;height:28px;transform:rotate(${bearingDeg}deg);transform-origin:center center;">`,
+    html: `<img src="${iconPath}" style="width:28px;height:28px;transform:rotate(${bearingDeg}deg);transform-origin:10px 10px;">`,
     iconSize: [20, 20],
     iconAnchor: [10, 10]
   });
