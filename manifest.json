@@ -2,12 +2,12 @@
   "name": "Мапа цілей України",
   "short_name": "Мапа цілей",
   "description": "Інтерактивна мара для відстеження цілей",
-  "start_url": "/",
+  "start_url": "/simple-map/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#007bff",
   "orientation": "landscape",
-  "scope": "/",
+  "scope": "/simple-map/",
   "icons": [
     {
       "src": "icons/icon-512x512.png",
