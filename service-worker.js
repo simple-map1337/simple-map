@@ -1,9 +1,12 @@
 // service-worker.js
 const CACHE_NAME = 'targets-map-v1.3';
+const BASE_URL = '/simple-map/';
+
 const urlsToCache = [
-  '/simple-map/',
-  '/simple-map/index.html',
-  '/simple-map/manifest.json',
+  BASE_URL,
+  BASE_URL + 'index.html',
+  BASE_URL + 'manifest.json',
+  BASE_URL + 'service-worker.js',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 ];
@@ -27,8 +30,8 @@ self.addEventListener('fetch', function(event) {
         }
         
         return fetch(event.request).catch(function() {
-          // Fallback для GitHub Pages - всегда возвращаем index.html
-          return caches.match('/simple-map/index.html');
+          // Fallback для GitHub Pages
+          return caches.match(BASE_URL + 'index.html');
         });
       })
   );
