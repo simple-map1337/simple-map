@@ -2309,12 +2309,12 @@ window.addEventListener('focus', function() {
     lastUpdateTime = Date.now();
 });
 
-// Автосохранение каждые 5 секунд
+// Автосохранение каждую 1 секунду
 setInterval(() => {
     if (targets.length > 0) {
         saveTargetsToStorage();
     }
-}, 5000);
+}, 1000);
 
 // Также сохраняем при закрытии страницы
 window.addEventListener('beforeunload', function() {
