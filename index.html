@@ -1,0 +1,3121 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Мапа — цілі</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+html,body{height:100%;margin:0}
+#map{width:100%;height:100vh}
+
+/* Горизонтальные кнопки вверху */
+.leaflet-top.leaflet-left {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 10px;
+}
+
+.leaflet-control-custom{
+  background:white;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,0.3);
+  width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:18px;transition:0.15s
+}
+.leaflet-control-custom:hover{background:#f0f0f0}
+.leaflet-control-custom.active{background:#cce5ff}
+.preview-icon{font-size:18px;opacity:0.8;transform-origin:center}
+#iconMenu{
+  position:absolute;top:10px;right:10px;z-index:1000;
+  background:white;padding:10px;border-radius:8px;
+  box-shadow:0 1px 5px rgba(0,0,0,0.3);
+  display:none;flex-direction:column;gap:8px;
+  font-family:sans-serif;font-size:14px;
+  max-height:80vh;overflow-y:auto;
+  width:380px;
+}
+#iconMenu img{width:28px;height:28px;cursor:pointer;transition:0.15s}
+#iconMenu img:hover{transform:scale(1.1)}
+#speedInput{
+  width:100%;padding:4px;margin-top:6px;
+  border:1px solid #ccc;border-radius:6px;font-size:14px
+}
+#toggleMenu{
+  position:absolute;top:10px;right:10px;z-index:1001;
+  background:white;color:black;border:1px solid #ccc;border-radius:6px;
+  width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+
+/* Trajectory controls in menu */
+.traj-section { border-top:1px solid #eee; padding-top:6px; margin-top:4px; }
+.traj-controls { display:flex; gap:6px; margin-top:6px; }
+.traj-controls button { padding:6px 8px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; }
+.traj-controls button.active { background:#00c6ff; color:#fff; border-color:#00a0d6; }
+.traj-row { display:flex; gap:6px; align-items:center; }
+.traj-row input[type="number"]{ width:60px; padding:4px; border-radius:4px; border:1px solid #ccc; }
+.traj-row label{ font-size:13px; }
+
+/* Стили для popup расчета расстояния */
+.distance-popup { text-align: center; }
+.distance-popup h3 { margin: 0 0 10px 0; font-size: 16px; }
+.distance-popup p { margin: 5px 0; font-size: 14px; }
+.distance-popup button {
+  margin-top: 10px;
+  padding: 6px 12px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.distance-popup button:hover {
+  background: #0056b3;
+}
+
+/* Стили для меню иконок с прокруткой */
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 5px;
+}
+.icon-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+.icon-item:hover {
+  background: #f0f0f0;
+}
+.icon-item img {
+  width: 24px;
+  height: 24px;
+}
+.icon-label {
+  font-size: 10px;
+  text-align: center;
+  margin-top: 2px;
+  line-height: 1.2;
+}
+
+/* Стили для названий целей */
+.target-label {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 1px 4px;
+  border-radius: 20px;
+  font-size: 9px;
+  font-weight: bold;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1000;
+  border: 1px solid #ccc;
+  
+}
+
+/* Двухколоночный layout для меню */
+.menu-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-top: 10px;
+}
+.menu-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.menu-column h4 {
+  margin: 0 0 5px 0;
+  font-size: 14px;
+  color: #333;
+}
+.name-input {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+/* Стили для настроек иконок */
+.icon-settings {
+  border-top: 1px solid #eee;
+  padding-top: 10px;
+  margin-top: 10px;
+}
+.icon-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.icon-settings-row label {
+  font-size: 13px;
+  min-width: 80px;
+}
+.icon-settings-row input {
+  padding: 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+.icon-preview {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  background: #f9f9f9;
+}
+
+/* Стили для настроек угрозы */
+.threat-section {
+  border-top: 1px solid #eee;
+  padding-top: 10px;
+  margin-top: 10px;
+}
+.threat-controls {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.threat-controls button {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+}
+.threat-controls button.active {
+  background: #ff4444;
+  color: #fff;
+  border-color: #cc0000;
+}
+.threat-controls button.active.movement {
+  background: #44ff44;
+  color: #fff;
+  border-color: #00cc00;
+}
+.threat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.threat-row label {
+  font-size: 13px;
+  min-width: 100px;
+}
+.threat-row input {
+  padding: 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: 80px;
+}
+
+/* Стили для поиска */
+.search-result-item {
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+}
+
+.search-result-item:hover {
+    background: #f0f0f0;
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+/* Добавьте в существующие стили */
+.search-result-item.loading {
+    text-align: center;
+    color: #666;
+    font-style: italic;
+}
+
+.search-result-item.error {
+    color: #ff4444;
+    text-align: center;
+}
+
+.search-result-item .place-type {
+    background: #007bff;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    margin-left: 5px;
+}
+
+/* Стили для кнопок редактирования */
+#editToolsBtn.active,
+#rulerBtn.active, 
+#drawBtn.active {
+  background: #cce5ff !important;
+  border-color: #007bff !important;
+}
+
+/* Стили для модального окна изменения типа */
+#changeTypeModal {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: 1002 !important;
+}
+
+#modalOverlay {
+    position: fixed !important;
+    z-index: 1001 !important;
+}
+
+/* Стили для телепорта */
+.teleport-mode-btn {
+    transition: all 0.2s ease;
+}
+
+.teleport-mode-btn:hover {
+    transform: scale(1.05);
+}
+
+.teleport-mode-btn.active {
+    color: white;
+}
+
+#teleportMoveMode.active {
+    background: #44ff44 !important;
+    border-color: #00cc00 !important;
+}
+
+#teleportStopMode.active {
+    background: #ff4444 !important;
+    border-color: #cc0000 !important;
+}
+
+#teleportModal input[type="number"] {
+    font-size: 16px;
+    text-align: center;
+}
+
+#teleportModal label {
+    user-select: none;
+}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<button id="toggleMenu" style="
+  position: absolute;
+  top: 17px;
+  right: 10px;
+  z-index: 1001;
+  background: white;
+  color: black;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+">
+⚙
+</button>
+
+<!-- Кнопка редактирования (✏️) -->
+<button id="editToolsBtn" style="
+  position: absolute;
+  top: 60px;
+  right: 10px;
+  z-index: 1001;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+">
+✏️
+</button>
+
+<!-- Дополнительные кнопки, скрытые по умолчанию -->
+<div id="editSubmenu" style="
+  position: absolute;
+  top: 100px;
+  right: 10px;
+  z-index: 1000;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+">
+  <button id="rulerBtn" style="width:36px;height:36px;font-size:18px;border-radius:6px;border:1px solid #ccc;box-shadow:0 2px 6px rgba(0,0,0,0.2);background:white;">📏</button>
+  <button id="drawBtn" style="width:36px;height:36px;font-size:18px;border-radius:6px;border:1px solid #ccc;box-shadow:0 2px 6px rgba(0,0,0,0.2);background:white;">🧶</button>
+</div>
+
+<!-- ПОЛЕ ПОИСКА -->
+<div id="searchContainer" style="
+  position: absolute;
+  top: 10px;
+  left: 60px;   /* немного правее кнопки ➕ */
+  z-index: 1000;
+  background: transparent;
+  padding: 8px;
+  border-radius: 8px;
+  width: 280px;">
+    <input type="text" id="searchInput" placeholder="🔍 Пошук населених пунктів..." 
+           style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; background: white; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+    <div id="searchResults" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; border-radius: 4px; max-height: 200px; overflow-y: auto; display: none; z-index: 1001; box-shadow: 0 2px 10px rgba(0,0,0,0.2);"></div>
+</div>
+
+<div id="iconMenu">
+  <b>Налаштування цілей</b>
+  
+  <div class="menu-columns">
+    <!-- Левая колонка - иконки -->
+    <div class="menu-column">
+      <h4>🛸 Тип цілі</h4>
+      <div class="icon-grid">
+        <div class="icon-item" data-icon="icons/shahed.svg" data-name="Шахед" data-speed="140">
+          <img src="icons/shahed.svg" title="Шахед">
+          <div class="icon-label">Шахед</div>
+        </div>
+        <div class="icon-item" data-icon="icons/x-59.svg" data-name="Х-59" data-speed="900">
+          <img src="icons/x-59.svg" title="Х-59">
+          <div class="icon-label">Х-59</div>
+        </div>
+        <div class="icon-item" data-icon="icons/x-101.svg" data-name="Х-101" data-speed="800">
+          <img src="icons/x-101.svg" title="Х-101">
+          <div class="icon-label">Х-101</div>
+        </div>
+        <div class="icon-item" data-icon="icons/recon.svg" data-name="Розвідник" data-speed="120">
+          <img src="icons/recon.svg" title="Розвідник">
+          <div class="icon-label">Розвідник</div>
+        </div>
+        <div class="icon-item" data-icon="icons/s-300-pp.svg" data-name="С-300 ПП" data-speed="0">
+          <img src="icons/s-300-pp.svg" title="С-300ПП">
+          <div class="icon-label">С-300ПП</div>
+        </div>
+        <div class="icon-item" data-icon="icons/kab.svg" data-name="КАБ" data-speed="600">
+          <img src="icons/kab.svg" title="КАБ">
+          <div class="icon-label">КАБ</div>
+        </div>
+        <div class="icon-item" data-icon="icons/pu-iskander.svg" data-name="ПУ Іскандер" data-speed="0">
+          <img src="icons/pu-iskander.svg" title="ПУ Іскандер">
+          <div class="icon-label">ПУ Іскандер</div>
+        </div>
+        <div class="icon-item" data-icon="icons/iskander-k.svg" data-name="Іскандер-К" data-speed="950">
+          <img src="icons/iskander-k.svg" title="Іскандер-К">
+          <div class="icon-label">Іскандер-К</div>
+        </div>
+        <div class="icon-item" data-icon="icons/pu-mlrs.svg" data-name="ПУ РСЗВ" data-speed="0">
+          <img src="icons/pu-mlrs.svg" title="ПУ РСЗВ">
+          <div class="icon-label">ПУ РСЗВ</div>
+        </div>
+        <div class="icon-item" data-icon="icons/airfield.png" data-name="Аеродром" data-speed="0">
+    <img src="icons/airfield.png" title="Аеродром">
+    <div class="icon-label">Аеродром</div>
+  </div>
+  <div class="icon-item" data-icon="icons/shahed-launcher.png" data-name="ПУ Шахедів" data-speed="0">
+    <img src="icons/shahed-launcher.png" title="ПУ Шахедів">
+    <div class="icon-label">ПУ Шахедів</div>
+  </div>
+        <div class="icon-item" data-icon="icons/ballistic.svg" data-name="Балістика" data-speed="6000">
+          <img src="icons/ballistic.svg" title="Балістика">
+          <div class="icon-label">Балістика</div>
+        </div>
+        <div class="icon-item" data-icon="icons/mig-31k.svg" data-name="МіГ-31К" data-speed="1200">
+          <img src="icons/mig-31k.svg" title="МіГ-31К">
+          <div class="icon-label">МіГ-31К</div>
+        </div>
+        <div class="icon-item" data-icon="icons/fpv.svg" data-name="FPV" data-speed="100">
+          <img src="icons/fpv.svg" title="FPV">
+          <div class="icon-label">FPV</div>
+        </div>
+        <div class="icon-item" data-icon="icons/unknown.svg" data-name="Невідомий" data-speed="100">
+          <img src="icons/unknown.svg" title="Невідомий">
+          <div class="icon-label">Невідомий</div>
+        </div>
+        <div class="icon-item" data-icon="icons/lightning.svg" data-name="Молнія" data-speed="85">
+          <img src="icons/lightning.svg" title="Молнія">
+          <div class="icon-label">Молнія</div>
+        </div>
+        <div class="icon-item" data-icon="icons/lancet.svg" data-name="Ланцет" data-speed="85">
+          <img src="icons/lancet.svg" title="Ланцет">
+          <div class="icon-label">Ланцет</div>
+        </div>
+        <div class="icon-item" data-icon="icons/iskander-m.svg" data-name="Іскандер-М" data-speed="8000">
+          <img src="icons/iskander-m.svg" title="Іскандер-М">
+          <div class="icon-label">Іскандер-М</div>
+        </div>
+        <div class="icon-item" data-icon="icons/mlrs.svg" data-name="РСЗВ" data-speed="3000">
+          <img src="icons/mlrs.svg" title="РСЗВ">
+          <div class="icon-label">РСЗВ</div>
+        </div>
+        <div class="icon-item" data-icon="icons/ta.svg" data-name="ТА" data-speed="900">
+          <img src="icons/ta.svg" title="ТА">
+          <div class="icon-label">ТА</div>
+        </div>
+        <div class="icon-item" data-icon="icons/kinzhal.svg" data-name="Кинжал" data-speed="15000">
+          <img src="icons/kinzhal.svg" title="Кинжал">
+          <div class="icon-label">Кинжал</div>
+        </div>
+        <div class="icon-item" data-icon="icons/tu-22.svg" data-name="Ту-22" data-speed="1000">
+          <img src="icons/tu-22.svg" title="Ту-22">
+          <div class="icon-label">Ту-22</div>
+        </div>
+        <div class="icon-item" data-icon="icons/x-22.svg" data-name="Х-22" data-speed="12500">
+          <img src="icons/x-22.svg" title="Х-22">
+          <div class="icon-label">Х-22</div>
+        </div>
+        <div class="icon-item" data-icon="icons/tu-95ms.svg" data-name="Ту-95МС" data-speed="700">
+          <img src="icons/tu-95ms.svg" title="Ту-95МС">
+          <div class="icon-label">Ту-95МС</div>
+        </div>
+        <div class="icon-item" data-icon="icons/x-31.svg" data-name="Х-31" data-speed="2300">
+          <img src="icons/x-31.svg" title="Х-31">
+          <div class="icon-label">Х-31</div>
+        </div>
+        <div class="icon-item" data-icon="icons/recon-strike-uav.svg" data-name="Розв./ударн. БпЛА" data-speed="100">
+          <img src="icons/recon-strike-uav.svg" title="Розв./ударн. БпЛА">
+          <div class="icon-label">Розв./ударн. БпЛА</div>
+        </div>
+        <div class="icon-item" data-icon="icons/fast.svg" data-name="Швидкісна" data-speed="900">
+          <img src="icons/fast.svg" title="Швидкісна">
+          <div class="icon-label">Швидкісна</div>
+        </div>
+        <div class="icon-item" data-icon="icons/italmas.svg" data-name="Італмас" data-speed="120">
+          <img src="icons/italmas.svg" title="Італмас">
+          <div class="icon-label">Італмас</div>
+        </div>
+        <div class="icon-item" data-icon="icons/shahed-238.svg" data-name="Шахед 238" data-speed="250">
+          <img src="icons/shahed-238.svg" title="Шахед 238">
+          <div class="icon-label">Шахед 238</div>
+        </div>
+        <div class="icon-item" data-icon="icons/orlan-10.svg" data-name="Орлан-10" data-speed="115">
+          <img src="icons/orlan-10.svg" title="Орлан-10">
+          <div class="icon-label">Орлан-10</div>
+        </div>
+        <div class="icon-item" data-icon="icons/supercam.svg" data-name="Суперкам" data-speed="85">
+          <img src="icons/supercam.svg" title="Суперкам">
+          <div class="icon-label">Суперкам</div>
+        </div>
+        <div class="icon-item" data-icon="icons/zala.svg" data-name="Зала" data-speed="85">
+          <img src="icons/zala.svg" title="Зала">
+          <div class="icon-label">Зала</div>
+        </div>
+        <div class="icon-item" data-icon="icons/su-57.svg" data-name="Су-57" data-speed="1100">
+          <img src="icons/su-57.svg" title="Су-57">
+          <div class="icon-label">Су-57</div>
+        </div>
+        <div class="icon-item" data-icon="icons/herbera.svg" data-name="Гербера" data-speed="130">
+          <img src="icons/herbera.svg" title="Гербера">
+          <div class="icon-label">Гербера</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Модальное окно для изменения типа цели -->
+<div id="changeTypeModal" style="
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1002;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    display: none;
+    flex-direction: column;
+    width: 400px;
+    max-height: 80vh;
+">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3 style="margin: 0;">🔄 Змінити тип цілі</h3>
+        <button id="closeChangeTypeModal" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
+    </div>
+    
+    <div style="margin-bottom: 15px; font-size: 14px; color: #666;">
+        Вибрана ціль: <span id="selectedTargetName">-</span>
+    </div>
+    
+    <div class="icon-grid" style="max-height: 300px; overflow-y: auto; margin-bottom: 15px;">
+        <!-- Иконки будут добавлены через JavaScript -->
+    </div>
+    
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button id="cancelChangeType" style="padding: 8px 16px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer;">Відмінити</button>
+        <button id="confirmChangeType" style="padding: 8px 16px; border: none; border-radius: 4px; background: #007bff; color: white; cursor: pointer;">Готово</button>
+    </div>
+</div>
+
+<!-- Затемнение фона -->
+<div id="modalOverlay" style="
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1001;
+    display: none;
+"></div>
+
+    <!-- Правая колонка - настройки -->
+    <div class="menu-column">
+      <h4>🏷️ Назва цілі</h4>
+      <input type="text" id="targetNameInput" class="name-input" placeholder="Введіть назву цілі" maxlength="20">
+      
+      <h4>⚡ Швидкість (км/год)</h4>
+      <input type="number" id="speedInput" min="0" max="100000" placeholder="Введи швидкість" class="name-input">
+      
+      <!-- Новые настройки для иконок -->
+      <div class="icon-settings">
+        <h4>🎨 Налаштування іконки</h4>
+        
+        <div class="icon-settings-row">
+          <label>Колір:</label>
+          <input type="color" id="iconColorInput" value="#000000">
+        </div>
+        
+        <div class="icon-settings-row">
+          <label>Розмір:</label>
+          <input type="number" id="iconSizeInput" min="10" max="50" value="20" style="width: 60px;">
+          <span>px</span>
+        </div>
+        
+        <div class="icon-preview">
+          <div id="iconPreview"></div>
+        </div>
+      </div>
+
+      <!-- Настройки угрозы -->
+      <div class="threat-section">
+    <h4>⚠️ Режим цілі</h4>
+    <div class="threat-controls">
+        <button id="threatModeBtn">Загроза</button>
+        <button id="movementModeBtn" class="active">Рух</button>
+    </div>
+    
+    <!-- ДОБАВЬ ЭТО ВНУТРИ threat-section -->
+    <div class="threat-row">
+        <label>Глобальний радіус (км):</label>
+        <input type="number" id="threatRadiusInput" min="1" max="1000" value="10" step="1">
+    </div>
+    <div class="threat-row">
+        <button id="changeThreatRadiusBtn" style="padding: 4px 8px; font-size: 12px;">
+            Змінити радіус вибраної цілі
+        </button>
+    </div>
+    <!-- КОНЕЦ ДОБАВЛЕНИЯ -->
+</div>
+
+  <div class="traj-section">
+    <b>Траєкторія</b>
+    <div class="traj-controls">
+      <button id="trajSolidBtn" class="active">Суцільна</button>
+      <button id="trajDashBtn">Пунктирна</button>
+    </div>
+    <div class="traj-row">
+      <label>Колір</label>
+      <input id="trajColor" type="color" value="#00a0ff">
+    </div>
+    <div class="traj-row">
+      <label>Ширина</label>
+      <input id="trajWidth" type="number" min="1" max="10" value="2">
+      <label>Прозорість</label>
+      <input id="trajOpacity" type="number" min="0" max="1" step="0.1" value="0.9" style="width:60px">
+    </div>
+  </div>
+
+<!-- Модальное окно телепорта -->
+<div id="teleportModal" style="
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1002;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    display: none;
+    flex-direction: column;
+    width: 320px;
+    font-family: sans-serif;
+">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3 style="margin: 0;">🚀 Телепорт цілі</h3>
+        <button id="closeTeleportModal" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
+    </div>
+    
+    <div style="margin-bottom: 15px; font-size: 14px; color: #666;">
+        Ціль: <span id="teleportTargetName">-</span>
+    </div>
+    
+    <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px; font-size: 14px;">Час телепорту:</label>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <div style="flex: 1;">
+                <label style="font-size: 12px; color: #666;">Хвилини</label>
+                <input type="number" id="teleportMinutes" min="0" max="59" value="0" 
+                       style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+            <div style="font-size: 18px; margin-top: 12px;">:</div>
+            <div style="flex: 1;">
+                <label style="font-size: 12px; color: #666;">Секунди</label>
+                <input type="number" id="teleportSeconds" min="0" max="59" value="0" 
+                       style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+        </div>
+    </div>
+    
+    <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 8px; font-size: 14px;">Режим після телепорту:</label>
+        <div style="display: flex; gap: 10px;">
+            <button id="teleportMoveMode" class="teleport-mode-btn active" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: #44ff44; cursor: pointer;">Рух</button>
+            <button id="teleportStopMode" class="teleport-mode-btn" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer;">Стоп</button>
+        </div>
+    </div>
+    
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button id="cancelTeleport" style="padding: 8px 16px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer;">Відмінити</button>
+        <button id="applyTeleport" style="padding: 8px 16px; border: none; border-radius: 4px; background: #007bff; color: white; cursor: pointer;">Застосувати</button>
+     </div>
+  </div>
+</div>
+
+<script>
+/* === Начало твоего оригинального кода === */
+const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([49.0, 31.0], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18,
+  attribution: '',
+  detectRetina: true,
+  updateWhenIdle: false,
+  keepBuffer: 2,
+  className: 'ukraine-map-tiles light-theme'
+}).addTo(map);
+
+/* === ОТКЛЮЧЕНИЕ ДВОЙНОГО КЛИКА ЗУМА === */
+map.doubleClickZoom.disable();
+map.on('dblclick', function(e) {
+    e.originalEvent.preventDefault();
+    e.originalEvent.stopPropagation();
+});
+
+let mode = null;
+let firstClickLatLng = null;
+let previewMarker = null;
+let selectedIcon = 'icons/shahed.svg';
+let selectedSpeed = 0;
+let selectedTarget = null;
+const targets = []; // markers
+const deletedTargets = []; // хранилище удаленных целей
+
+/* === Режим линейки === */
+let rulerActive = false;
+let rulerPoints = [];
+let rulerLine = null;
+let rulerPopup = null;
+
+/* === Режим рисования === */
+let drawMode = false;
+let drawPoints = [];
+let drawMarkers = [];
+let drawLine = null;
+let segmentLabels = [];
+let totalDistanceLabel = null;
+
+// Функция для расчета расстояния в км - ПЕРЕМЕСТИТЕ ЭТУ ФУНКЦИЮ В НАЧАЛО
+function calculateDistanceKm(a, b) {
+  const R = 6371;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const lat1 = a.lat * Math.PI / 180;
+  const lat2 = b.lat * Math.PI / 180;
+  const x = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
+  const d = 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+  return d;
+}
+
+/* === Переменные для телепорта === */
+let teleportMode = false;
+let teleportTarget = null;
+
+/* === Глобальные переменные для названий === */
+let selectedTargetName = '';
+let showAllLabels = true;
+
+/* === Настройки иконок === */
+let selectedIconColor = '#000000';
+let selectedIconSize = 20;
+
+/* === Настройки угрозы === */
+let threatMode = false;
+let movementMode = false;
+let threatRadius = 10; // в километрах
+
+/* === Trajectory storage and global settings === */
+let showAllTrajectories = true;
+let showSelectedTrajectory = true;
+
+const trajSettings = {
+  dash: false,
+  color: '#00a0ff',
+  weight: 2,
+  opacity: 0.9
+};
+
+/* === Функция для создания иконки с правильным поворотом === */
+function createTargetIcon(iconPath, bearing, color = '#000000', size = 20) {
+    // SVG иконки смотрят влево, поэтому добавляем 90 градусов чтобы они смотрели вверх
+    const correctedBearing = bearing + 90;
+    
+    return L.divIcon({
+        className: 'target-icon',
+        html: `
+            <div style="
+                width: ${size}px; 
+                height: ${size}px; 
+                display: flex; 
+                align-items: center; 
+                justify-content: center;
+                transform: rotate(${correctedBearing}deg);
+                transform-origin: center center;
+            ">
+                <img src="${iconPath}" 
+                     style="
+                         width: ${size}px; 
+                         height: ${size}px;
+                         filter: ${getColorFilter(color)};
+                     ">
+            </div>
+        `,
+        iconSize: [size, size],
+        iconAnchor: [size/2, size/2]
+    });
+}
+
+/* === Функция для применения цветового фильтра === */
+function getColorFilter(color) {
+    if (color === '#000000') return 'none';
+    
+    const colorMap = {
+        '#ff0000': 'invert(16%) sepia(99%) saturate(7414%) hue-rotate(1deg) brightness(101%) contrast(118%)',
+        '#00ff00': 'invert(55%) sepia(98%) saturate(3115%) hue-rotate(90deg) brightness(122%) contrast(124%)',
+        '#0000ff': 'invert(15%) sepia(98%) saturate(7484%) hue-rotate(256deg) brightness(92%) contrast(119%)',
+        '#ffff00': 'invert(84%) sepia(65%) saturate(1315%) hue-rotate(359deg) brightness(107%) contrast(104%)',
+        '#ff00ff': 'invert(20%) sepia(98%) saturate(7484%) hue-rotate(295deg) brightness(99%) contrast(101%)',
+        '#00ffff': 'invert(73%) sepia(63%) saturate(4333%) hue-rotate(161deg) brightness(102%) contrast(101%)',
+        '#ffa500': 'invert(62%) sepia(98%) saturate(744%) hue-rotate(359deg) brightness(104%) contrast(101%)',
+        '#800080': 'invert(13%) sepia(98%) saturate(7484%) hue-rotate(275deg) brightness(89%) contrast(101%)'
+    };
+    
+    return colorMap[color] || `invert(${hexToHue(color)}%) sepia(100%) saturate(1000%) hue-rotate(${hexToHue(color)}deg)`;
+}
+
+/* === Функция для преобразования HEX в hue === */
+function hexToHue(hex) {
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    
+    let hue = 0;
+    if (max !== min) {
+        const delta = max - min;
+        switch (max) {
+            case r: hue = ((g - b) / delta) % 6; break;
+            case g: hue = (b - r) / delta + 2; break;
+            case b: hue = (r - g) / delta + 4; break;
+        }
+        hue = Math.round(hue * 60);
+        if (hue < 0) hue += 360;
+    }
+    
+    return hue;
+}
+
+// === ОБРАБОТЧИКИ ТЕЛЕПОРТА ===
+
+// Обработчики для модального окна телепорта
+document.getElementById('closeTeleportModal').addEventListener('click', function() {
+    closeTeleportModal();
+});
+
+document.getElementById('cancelTeleport').addEventListener('click', function() {
+    closeTeleportModal();
+});
+
+document.getElementById('applyTeleport').addEventListener('click', function() {
+    applyTeleport();
+});
+
+// Обработчики для кнопок режима
+document.getElementById('teleportMoveMode').addEventListener('click', function() {
+    this.classList.add('active');
+    document.getElementById('teleportStopMode').classList.remove('active');
+});
+
+document.getElementById('teleportStopMode').addEventListener('click', function() {
+    this.classList.add('active');
+    document.getElementById('teleportMoveMode').classList.remove('active');
+});
+
+// === КОНЕЦ ОБРАБОТЧИКОВ ТЕЛЕПОРТА ===
+
+/* === Функция обновления предпросмотра иконки === */
+function updateIconPreview() {
+    const preview = document.getElementById('iconPreview');
+    preview.innerHTML = `
+        <img src="${selectedIcon}" 
+             style="
+                 width: ${selectedIconSize}px; 
+                 height: ${selectedIconSize}px;
+                 filter: ${getColorFilter(selectedIconColor)};
+                 transform: rotate(90deg);
+             "
+             title="Попередній перегляд (повернуто на 90° для коректного відображення)">
+    `;
+}
+
+/* === Функция обновления иконки цели === */
+function updateTargetIcon(target, bearing = null) {
+    const newBearing = bearing !== null ? bearing : target._course;
+    const newIcon = createTargetIcon(
+        target._iconPath, 
+        newBearing, 
+        target._iconColor, 
+        target._iconSize
+    );
+    target.setIcon(newIcon);
+}
+
+/* === Функция обновления ВСЕХ иконок на карте === */
+function updateAllTargetsIcons() {
+    targets.forEach(target => {
+        // Обновляем цвет и размер у всех целей
+        target._iconColor = selectedIconColor;
+        target._iconSize = selectedIconSize;
+        updateTargetIcon(target);
+    });
+    saveTargetsToStorage();
+}
+
+/* === Функция для создания круга угрозы === */
+function createThreatCircle(target) {
+    if (target._threatCircle) {
+        map.removeLayer(target._threatCircle);
+    }
+    
+    // Используем индивидуальный радиус цели, если он есть, иначе глобальный
+    const radiusKm = target._threatRadius || threatRadius;
+    const radiusMeters = radiusKm * 1000;
+    
+    target._threatCircle = L.circle(target.getLatLng(), {
+        color: '#ff0000',
+        fillColor: '#ff0000',
+        fillOpacity: 0.2,
+        opacity: 0.7,
+        weight: 2,
+        radius: radiusMeters
+    }).addTo(map);
+}
+
+/* === Функция изменения радиуса угрозы для выбранной цели === */
+function changeThreatRadius() {
+    if (!selectedTarget) {
+        showNotification('❌ Спочатку виберіть ціль');
+        return;
+    }
+    
+    const newRadius = prompt(`Введіть радіус загрози для "${selectedTarget._name}" (км):`, selectedTarget._threatRadius || threatRadius);
+    
+    if (newRadius !== null) {
+        const radius = parseFloat(newRadius);
+        if (!isNaN(radius) && radius > 0 && radius <= 1000) {
+            selectedTarget._threatRadius = radius;
+            
+            // Обновляем круг если цель в режиме угрозы
+            if (selectedTarget._isThreat) {
+                createThreatCircle(selectedTarget);
+            }
+            
+            saveTargetsToStorage();
+            showNotification(`✅ Радіус встановлено: ${radius} км`);
+        } else {
+            showNotification('❌ Неправильне значення радіусу');
+        }
+    }
+}
+
+/* === Функция для удаления круга угрозы === */
+function removeThreatCircle(target) {
+    if (target._threatCircle) {
+        map.removeLayer(target._threatCircle);
+        target._threatCircle = null;
+    }
+}
+
+/* === Функция установки режима угрозы === */
+function setThreatMode(target) {
+    target._isThreat = true;
+    target._originalSpeed = target._speedKmph; // сохраняем оригинальную скорость
+    target._speedKmph = 0;
+    target._moving = false;
+    
+    createThreatCircle(target);
+    saveTargetsToStorage();
+}
+
+/* === Функция установки режима движения === */
+function setMovementMode(target) {
+    target._isThreat = false;
+    
+    // Восстанавливаем оригинальную скорость или используем автозаполнение
+    if (target._originalSpeed !== undefined) {
+        target._speedKmph = target._originalSpeed;
+    } else {
+        // Ищем соответствующую скорость в базе данных автозаполнения
+        const iconItem = document.querySelector(`.icon-item[data-icon="${target._iconPath}"]`);
+        if (iconItem) {
+            target._speedKmph = parseInt(iconItem.dataset.speed) || 0;
+        }
+    }
+    
+    target._moving = target._speedKmph > 0;
+    
+    removeThreatCircle(target);
+    saveTargetsToStorage();
+}
+
+/* === Функция отмены удаления === */
+function undoDelete() {
+    if (deletedTargets.length > 0) {
+        const deletedTarget = deletedTargets.pop();
+        
+        // Восстанавливаем маркер
+        const marker = L.marker(deletedTarget.position, { 
+            icon: createTargetIcon(deletedTarget.icon, deletedTarget.course, deletedTarget.color, deletedTarget.size)
+        }).addTo(map);
+        
+        // Восстанавливаем все свойства
+        Object.assign(marker, deletedTarget.properties);
+        marker._currentPos = deletedTarget.position;
+        
+        // Восстанавливаем метку
+        const label = L.divIcon({
+            className: 'target-label',
+            html: `<div>${marker._name}</div>`,
+            iconSize: [100, 20],
+            iconAnchor: [50, 0]
+        });
+        
+        const labelMarker = L.marker(deletedTarget.position, { 
+            icon: label,
+            interactive: false 
+        }).addTo(map);
+        
+        marker._label = labelMarker;
+        
+        if (!showAllLabels) {
+            labelMarker.getElement().style.display = 'none';
+        }
+        
+        // Восстанавливаем траекторию
+        if (deletedTarget.trajectory && deletedTarget.trajectory.length > 0) {
+            const polyline = L.polyline(deletedTarget.trajectory, getPolylineOptions());
+            marker._polyline = polyline;
+            if (showAllTrajectories && !showSelectedTrajectoryMode) polyline.addTo(map);
+        }
+        
+        // Восстанавливаем круг угрозы если нужно
+        if (marker._isThreat) {
+            createThreatCircle(marker);
+        }
+        
+        // Восстанавливаем обработчик событий
+        marker.on('click', createTargetClickHandler(marker));
+        
+        targets.push(marker);
+        saveTargetsToStorage();
+        
+        console.log(`Відновлено ціль: ${marker._name}`);
+    } else {
+        console.log('Немає видалених цілей для відновлення');
+    }
+}
+
+/* === Функция создания обработчика клика для цели === */
+function createTargetClickHandler(marker) {
+    return function(e) {
+        if (e) L.DomEvent.stopPropagation(e);
+
+        // сбрасываем выделение у предыдущей цели
+        if (selectedTarget && selectedTarget !== marker && selectedTarget.getElement()) {
+            selectedTarget.getElement().style.filter = '';
+        }
+
+        if (calculateDistanceMode) {
+            selectedTarget = marker;
+            if (marker.getElement()) marker.getElement().style.filter = 'drop-shadow(0 0 6px orange)';
+            return;
+        }
+
+        if (quickTrajectoryMode) {
+            if (selectedTarget && selectedTarget !== marker && previousTargetSpeed !== null) {
+                selectedTarget._speedKmph = previousTargetSpeed;
+                selectedTarget._moving = selectedTarget._speedKmph > 0;
+            }
+            selectedTarget = marker;
+            if (marker.getElement()) marker.getElement().style.filter = 'drop-shadow(0 0 6px red)';
+            previousTargetSpeed = selectedTarget._speedKmph;
+            selectedTarget._speedKmph = 0;
+            selectedTarget._moving = false;
+            quickTrajectoryPoints = [selectedTarget.getLatLng()];
+            if (quickTrajectoryPolyline) quickTrajectoryPolyline.setLatLngs(quickTrajectoryPoints);
+            return;
+        }
+
+        if (showSelectedTrajectoryMode) {
+            if (selectedTarget && selectedTarget !== marker && selectedTarget._polyline) {
+                if (map.hasLayer(selectedTarget._polyline)) map.removeLayer(selectedTarget._polyline);
+            }
+            selectedTarget = marker;
+            if (marker.getElement()) marker.getElement().style.filter = 'drop-shadow(0 0 6px green)';
+            if (selectedTarget._polyline && !map.hasLayer(selectedTarget._polyline)) map.addLayer(selectedTarget._polyline);
+            return;
+        }
+
+        if (threatMode) {
+            setThreatMode(marker);
+            threatMode = false;
+            threatModeBtn.classList.remove('active');
+            return;
+        }
+
+        if (movementMode) {
+            setMovementMode(marker);
+            movementMode = false;
+            movementModeBtn.classList.remove('active');
+            return;
+        }
+
+        // === режим телепорта ===
+        if (teleportMode) {
+            // Сбрасываем выделение у предыдущей цели
+            if (teleportTarget && teleportTarget !== marker && teleportTarget.getElement()) {
+                teleportTarget.getElement().style.filter = '';
+            }
+            
+            teleportTarget = marker;
+            
+            // Временно подсвечиваем выбранную цель
+            if (marker.getElement()) {
+                marker.getElement().style.filter = 'drop-shadow(0 0 6px #ff00ff)';
+            }
+            
+            // Открываем модальное окно телепорта
+            openTeleportModal(marker);
+            
+            return;
+        }
+
+        // === режим смены типа цели ===
+        if (mode === 'changeType') {
+            // Сбрасываем выделение у предыдущей выбранной цели
+            if (selectedTarget && selectedTarget !== marker && selectedTarget.getElement()) {
+                selectedTarget.getElement().style.filter = '';
+            }
+            
+            selectedTarget = marker;
+            
+            // Временно подсвечиваем выбранную цель
+            if (marker.getElement()) {
+                marker.getElement().style.filter = 'drop-shadow(0 0 6px purple)';
+            }
+            
+            // Открываем модальное окно для выбора типа
+            openChangeTypeModal(marker);
+            
+            // Сбрасываем режим после выбора цели
+            mode = null;
+            document.querySelectorAll('.leaflet-control-custom').forEach(ctrl => {
+                ctrl.classList.remove('active');
+            });
+            return;
+        }
+        
+        // === стандартные режимы ===
+        if (mode === 'delete') {
+            deleteTarget(marker);
+        } else if (mode === 'course') {
+            selectedTarget = marker;
+            if (marker.getElement()) marker.getElement().style.filter = 'drop-shadow(0 0 4px blue)';
+        } else if (mode === 'speed') {
+            selectedTarget = marker;
+            if (marker.getElement()) marker.getElement().style.filter = 'drop-shadow(0 0 4px blue)';
+            changeTargetSpeed(marker);
+        }
+    };
+}
+
+/* === НОВАЯ ФУНКЦИЯ: Расчет расстояния и времени === */
+let calculateDistanceMode = false;
+let distanceMarker = null;
+
+function startCalculateDistance() {
+    if (calculateDistanceMode) {
+        calculateDistanceMode = false;
+        calculateDistanceBtn.classList.remove('active');
+        
+        if (selectedTarget && selectedTarget.getElement()) {
+            selectedTarget.getElement().style.filter = '';
+        }
+        selectedTarget = null;
+        
+        if (distanceMarker) {
+            map.removeLayer(distanceMarker);
+            distanceMarker = null;
+        }
+        
+    } else {
+        calculateDistanceMode = true;
+        calculateDistanceBtn.classList.add('active');
+        
+        mode = null;
+        quickTrajectoryMode = false;
+        quickTrajectoryBtn.classList.remove('active');
+        showSelectedTrajectoryMode = false;
+        trajSelEl.classList.remove('active');
+        threatMode = false;
+        threatModeBtn.classList.remove('active');
+        movementMode = false;
+        movementModeBtn.classList.remove('active');
+        document.querySelectorAll('.leaflet-control-custom').forEach(el => {
+            if(el !== calculateDistanceBtn) el.classList.remove('active');
+        });
+        
+        clearPreview();
+    }
+}
+
+function calculateDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+function formatTime(seconds) {
+    if (seconds < 60) {
+        return `${Math.round(seconds)} сек`;
+    } else if (seconds < 3600) {
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.round(seconds % 60);
+        return `${minutes} хв ${secs} сек`;
+    } else {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        return `${hours} год ${minutes} хв`;
+    }
+}
+
+function createDistancePopup(targetPos, clickPos, target) {
+    const distance = calculateDistance(
+        targetPos.lat, targetPos.lng,
+        clickPos.lat, clickPos.lng
+    );
+    
+    const distanceKm = (distance / 1000).toFixed(2);
+    const distanceMiles = (distance / 1609.34).toFixed(2);
+    
+    let timeSeconds = 0;
+    if (target._speedKmph > 0) {
+        timeSeconds = (distance / 1000) / (target._speedKmph / 3600);
+    }
+    
+    const popupContent = `
+        <div class="distance-popup">
+            <h3>📐 Розрахунок</h3>
+            <p><strong>Відстань:</strong> ${distanceKm} км (${distanceMiles} миль)</p>
+            <p><strong>Час підльоту:</strong> ${target._speedKmph > 0 ? formatTime(timeSeconds) : 'Ціль зупинена'}</p>
+            <p><strong>Швидкість цілі:</strong> ${target._speedKmph} км/год</p>
+            <button onclick="this.parentElement.parentElement.closePopup()">Закрити</button>
+        </div>
+    `;
+    
+    return popupContent;
+}
+
+/* === НОВАЯ ФУНКЦИЯ: Быстрая траектория === */
+let quickTrajectoryMode = false;
+let quickTrajectoryPoints = [];
+let quickTrajectoryPolyline = null;
+let previousTargetSpeed = null;
+
+function startQuickTrajectory() {
+    if (quickTrajectoryMode) {
+        if (selectedTarget && quickTrajectoryPoints.length > 1) {
+            applyQuickTrajectory();
+        }
+        
+        quickTrajectoryMode = false;
+        quickTrajectoryBtn.classList.remove('active');
+        
+        if (quickTrajectoryPolyline) {
+            map.removeLayer(quickTrajectoryPolyline);
+            quickTrajectoryPolyline = null;
+        }
+        quickTrajectoryPoints = [];
+        
+        if (selectedTarget && previousTargetSpeed !== null) {
+            selectedTarget._speedKmph = previousTargetSpeed;
+            selectedTarget._moving = selectedTarget._speedKmph > 0;
+            previousTargetSpeed = null;
+        }
+        
+        if (selectedTarget && selectedTarget.getElement()) {
+            selectedTarget.getElement().style.filter = '';
+        }
+        selectedTarget = null;
+        
+    } else {
+        quickTrajectoryMode = true;
+        quickTrajectoryBtn.classList.add('active');
+        
+        mode = null;
+        calculateDistanceMode = false;
+        calculateDistanceBtn.classList.remove('active');
+        showSelectedTrajectoryMode = false;
+        trajSelEl.classList.remove('active');
+        threatMode = false;
+        threatModeBtn.classList.remove('active');
+        movementMode = false;
+        movementModeBtn.classList.remove('active');
+        document.querySelectorAll('.leaflet-control-custom').forEach(el => {
+            if(el !== quickTrajectoryBtn && el !== trajSelEl) el.classList.remove('active');
+        });
+        
+        if (selectedTarget) {
+            previousTargetSpeed = selectedTarget._speedKmph;
+            selectedTarget._speedKmph = 0;
+            selectedTarget._moving = false;
+            selectedTarget.getElement().style.filter = 'drop-shadow(0 0 6px red)';
+            
+            quickTrajectoryPoints = [selectedTarget.getLatLng()];
+        } else {
+            quickTrajectoryPoints = [];
+        }
+        
+        quickTrajectoryPolyline = L.polyline(quickTrajectoryPoints, {
+            color: '#ff0000',
+            weight: 3,
+            opacity: 0.7,
+            dashArray: '5,5'
+        }).addTo(map);
+    }
+}
+
+function applyQuickTrajectory() {
+    if (!selectedTarget || quickTrajectoryPoints.length < 2) return;
+    
+    const lastPoint = quickTrajectoryPoints[quickTrajectoryPoints.length - 1];
+    const secondLastPoint = quickTrajectoryPoints[quickTrajectoryPoints.length - 2];
+    
+    const bearing = bearingDegrees(secondLastPoint, lastPoint);
+    
+    selectedTarget.setLatLng(lastPoint);
+    selectedTarget._currentPos = lastPoint;
+    
+    selectedTarget._course = bearing;
+    updateTargetIcon(selectedTarget, bearing);
+    
+    selectedTarget._speedKmph = 0;
+    selectedTarget._moving = false;
+    
+    if (selectedTarget._polyline) {
+        const currentPoints = selectedTarget._polyline.getLatLngs();
+        const newPoints = currentPoints.concat(quickTrajectoryPoints.slice(1));
+        selectedTarget._polyline.setLatLngs(newPoints);
+    } else {
+        selectedTarget._polyline = L.polyline(quickTrajectoryPoints, getPolylineOptions());
+        if (showAllTrajectories) selectedTarget._polyline.addTo(map);
+    }
+    
+    previousTargetSpeed = null;
+    saveTargetsToStorage();
+}
+
+/* === Функция показа траектории выбранной цели === */
+let showSelectedTrajectoryMode = false;
+
+function toggleSelectedTrajectory() {
+    if (showSelectedTrajectoryMode) {
+        showSelectedTrajectoryMode = false;
+        trajSelEl.classList.remove('active');
+        
+        if (selectedTarget && selectedTarget.getElement()) {
+            selectedTarget.getElement().style.filter = '';
+        }
+        selectedTarget = null;
+        
+        targets.forEach(t => {
+            if (t._polyline && !map.hasLayer(t._polyline)) {
+                map.addLayer(t._polyline);
+            }
+        });
+        
+    } else {
+        showSelectedTrajectoryMode = true;
+        trajSelEl.classList.add('active');
+        
+        mode = null;
+        quickTrajectoryMode = false;
+        quickTrajectoryBtn.classList.remove('active');
+        calculateDistanceMode = false;
+        calculateDistanceBtn.classList.remove('active');
+        threatMode = false;
+        threatModeBtn.classList.remove('active');
+        movementMode = false;
+        movementModeBtn.classList.remove('active');
+        document.querySelectorAll('.leaflet-control-custom').forEach(el => {
+            if(el !== trajSelEl) el.classList.remove('active');
+        });
+        
+        targets.forEach(t => {
+            if (t._polyline && map.hasLayer(t._polyline)) {
+                map.removeLayer(t._polyline);
+            }
+        });
+    }
+}
+
+/* === LOCAL STORAGE FUNCTIONS === */
+function saveTargetsToStorage() {
+    const data = targets.map(target => {
+        return {
+            lat: target._currentPos.lat,
+            lng: target._currentPos.lng,
+            course: target._course,
+            speed: target._speedKmph,
+            icon: target._iconPath,
+            name: target._name,
+            color: target._iconColor,
+            size: target._iconSize,
+            isThreat: target._isThreat || false,
+            originalSpeed: target._originalSpeed,
+            threatRadius: target._threatRadius,
+            trajectory: target._polyline ? target._polyline.getLatLngs() : [],
+            // Сохраняем время последнего обновления
+            lastUpdate: Date.now()
+        };
+    });
+    localStorage.setItem('mapTargets', JSON.stringify(data));
+    // Также сохраняем время последнего обновления отдельно
+    localStorage.setItem('lastSaveTime', Date.now().toString());
+}
+
+function restoreTarget(positionLatLng, bearingDeg, speed, iconPath, trajectory, name = 'Ціль', color = '#000000', size = 20, isThreat = false, originalSpeed = null, threatRadius = null) {
+    const marker = L.marker(positionLatLng, { 
+        icon: createTargetIcon(iconPath, bearingDeg, color, size)
+    }).addTo(map);
+    
+    marker._course = bearingDeg;
+    marker._speedKmph = speed || 0;
+    marker._moving = marker._speedKmph > 0;
+    marker._currentPos = positionLatLng;
+    marker._iconPath = iconPath;
+    marker._name = name;
+    marker._iconColor = color;
+    marker._iconSize = size;
+    marker._isThreat = isThreat;
+    marker._originalSpeed = originalSpeed;
+    marker._threatRadius = threatRadius;
+
+    const label = L.divIcon({
+        className: 'target-label',
+        html: `<div>${marker._name}</div>`,
+        iconSize: [25, 15],
+        iconAnchor: [15, -15]
+    });
+    
+    const labelMarker = L.marker(positionLatLng, { 
+        icon: label,
+        interactive: false 
+    }).addTo(map);
+    
+    marker._label = labelMarker;
+
+    const polyline = L.polyline(trajectory.length > 0 ? trajectory : [positionLatLng], getPolylineOptions());
+    marker._polyline = polyline;
+    
+    if (showAllTrajectories && !showSelectedTrajectoryMode) polyline.addTo(map);
+
+    // Восстанавливаем круг угрозы если нужно
+    if (marker._isThreat) {
+        createThreatCircle(marker);
+    }
+
+    // ИСПРАВЛЕНИЕ: используем единый обработчик кликов
+    marker.on('click', createTargetClickHandler(marker));
+
+    targets.push(marker);
+}
+
+function getPolylineOptions() {
+    return {
+        color: trajSettings.color,
+        weight: trajSettings.weight,
+        opacity: trajSettings.opacity,
+        dashArray: trajSettings.dash ? '6,6' : null
+    };
+}
+
+function bearingDegrees(fromLatLng,toLatLng){
+    const toRad = d=>d*Math.PI/180;
+    const toDeg = r=>r*180/Math.PI;
+    const φ1=toRad(fromLatLng.lat);
+    const φ2=toRad(toLatLng.lat);
+    const Δλ=toRad(toLatLng.lng - fromLatLng.lng);
+    const y=Math.sin(Δλ)*Math.cos(φ2);
+    const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+    return (toDeg(Math.atan2(y,x))+360)%360;
+}
+
+function clearPreview() {
+    firstClickLatLng = null;
+    if (previewMarker) {
+        map.removeLayer(previewMarker);
+        previewMarker = null;
+    }
+}
+
+/* === Controls === */
+/* === Кнопка раскрытия/сворачивания остальных === */
+const ToggleControlsButton = L.Control.extend({
+  options: { position: 'topleft' },
+  onAdd() {
+    const el = L.DomUtil.create('div', 'leaflet-control leaflet-control-custom');
+    el.innerHTML = '📚';
+    el.title = 'Показати/Приховати інші кнопки';
+    L.DomEvent.on(el, 'click', ev => {
+      L.DomEvent.stopPropagation(ev);
+      L.DomEvent.preventDefault(ev);
+
+      const isHidden = document.body.classList.toggle('controls-hidden');
+      const allButtons = document.querySelectorAll('.leaflet-top.leaflet-left .leaflet-control-custom');
+      allButtons.forEach(btn => {
+        if (btn !== el) btn.style.display = isHidden ? 'none' : 'flex';
+      });
+    });
+    return el;
+  }
+});
+
+const AddControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd() { 
+        const el = L.DomUtil.create('div', 'leaflet-control leaflet-control-custom'); 
+        el.innerHTML = '➕';
+        el.title = 'Додати ціль';
+        L.DomEvent.on(el, 'click', ev => {
+            L.DomEvent.stopPropagation(ev);
+            L.DomEvent.preventDefault(ev);
+            mode = (mode === 'add') ? null : 'add';
+            el.classList.toggle('active');
+            document.querySelectorAll('.leaflet-control-custom').forEach(ctrl => {
+                if(ctrl !== el) ctrl.classList.remove('active');
+            });
+            
+            // ОЧИСТКА ПРЕВЬЮ ПРИ АКТИВАЦИИ/ДЕАКТИВАЦИИ РЕЖИМА
+            clearPreview();
+            
+            quickTrajectoryMode = false;
+            quickTrajectoryBtn.classList.remove('active');
+            calculateDistanceMode = false;
+            calculateDistanceBtn.classList.remove('active');
+            showSelectedTrajectoryMode = false;
+            trajSelEl.classList.remove('active');
+            threatMode = false;
+            threatModeBtn.classList.remove('active');
+            movementMode = false;
+            movementModeBtn.classList.remove('active');
+            if (selectedTarget && selectedTarget.getElement()) selectedTarget.getElement().style.filter = '';
+            selectedTarget = null;
+        });
+        return el;
+    }
+});
+
+const QuickTrajectoryControl=L.Control.extend({options:{position:'topleft'},onAdd(){ 
+    const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom'); 
+    el.innerHTML='🎯';el.title='Швидка траєкторія (виділіть ціль, клацайте по карті, потім знову кнопку)';
+    L.DomEvent.on(el,'click',function(ev) {
+        L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
+        startQuickTrajectory();
+    });
+    return el;
+}});
+
+// ОЧИСТКА ПРЕВЬЮ
+clearPreview();
+
+const CalculateDistanceControl=L.Control.extend({options:{position:'topleft'},onAdd(){ 
+    const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom'); 
+    el.innerHTML='📏';el.title='Розрахувати відстань та час підльоту (виділіть ціль, клацніть по карті)';
+    L.DomEvent.on(el,'click',function(ev) {
+        L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
+        startCalculateDistance();
+    });
+    return el;
+}});
+
+// ОЧИСТКА ПРЕВЬЮ
+clearPreview();
+
+const CourseControl=L.Control.extend({options:{position:'topleft'},onAdd(){
+    const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom');
+    el.innerHTML='🧭';el.title='Змінити курс';
+    L.DomEvent.on(el,'click',ev=>{
+        L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
+        const isActive = el.classList.toggle('active');
+        mode = isActive ? 'course' : null;
+        document.querySelectorAll('.leaflet-control-custom').forEach(ctrl => {
+            if(ctrl !== el) ctrl.classList.remove('active');
+        });
+        
+        // ОЧИСТКА ПРЕВЬЮ
+            clearPreview()
+        
+        quickTrajectoryMode = false;
+        quickTrajectoryBtn.classList.remove('active');
+        calculateDistanceMode = false;
+        calculateDistanceBtn.classList.remove('active');
+        showSelectedTrajectoryMode = false;
+        trajSelEl.classList.remove('active');
+        threatMode = false;
+        threatModeBtn.classList.remove('active');
+        movementMode = false;
+        movementModeBtn.classList.remove('active');
+        if(!isActive && selectedTarget && selectedTarget.getElement()) {
+            selectedTarget.getElement().style.filter='';
+            selectedTarget=null;
+        }
+        clearPreview();
+    });return el;
+}});
+
+const SpeedControl=L.Control.extend({options:{position:'topleft'},onAdd(){
+    const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom');
+    el.innerHTML='⚡';el.title='Змінити швидкість';
+    L.DomEvent.on(el,'click',ev=>{
+        L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
+        const isActive = el.classList.toggle('active');
+        mode = isActive ? 'speed' : null;
+        document.querySelectorAll('.leaflet-control-custom').forEach(ctrl => {
+            if(ctrl !== el) ctrl.classList.remove('active');
+        });
+        
+        // ОЧИСТКА ПРЕВЬЮ
+clearPreview();
+        
+        quickTrajectoryMode = false;
+        quickTrajectoryBtn.classList.remove('active');
+        calculateDistanceMode = false;
+        calculateDistanceBtn.classList.remove('active');
+        showSelectedTrajectoryMode = false;
+        trajSelEl.classList.remove('active');
+        threatMode = false;
+        threatModeBtn.classList.remove('active');
+        movementMode = false;
+        movementModeBtn.classList.remove('active');
+        if(!isActive && selectedTarget && selectedTarget.getElement()){
+            selectedTarget.getElement().style.filter='';
+            selectedTarget=null;
+        }
+        clearPreview();
+    });return el;
+}});
+
+const DeleteControl=L.Control.extend({options:{position:'topleft'},onAdd(){
+    const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom');
+    el.innerHTML='🗑️';el.title='Видалити ціль';
+    L.DomEvent.on(el,'click',ev=>{
+        L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
+        mode=(mode==='delete')?null:'delete';el.classList.toggle('active');
+        document.querySelectorAll('.leaflet-control-custom').forEach(ctrl => {
+            if(ctrl !== el) ctrl.classList.remove('active');
+        });
+        
+        // ОЧИСТКА ПРЕВЬЮ
+clearPreview();
+        
+        quickTrajectoryMode = false;
+        quickTrajectoryBtn.classList.remove('active');
+        calculateDistanceMode = false;
+        calculateDistanceBtn.classList.remove('active');
+        showSelectedTrajectoryMode = false;
+        trajSelEl.classList.remove('active');
+        threatMode = false;
+        threatModeBtn.classList.remove('active');
+        movementMode = false;
+        movementModeBtn.classList.remove('active');
+        clearPreview();
+    });return el;
+}});
+
+const ChangeTypeControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd() {
+        const el = L.DomUtil.create('div', 'leaflet-control leaflet-control-custom');
+        el.innerHTML = '♻️';
+        el.title = 'Змінити тип цілі';
+        L.DomEvent.on(el, 'click', ev => {
+            L.DomEvent.stopPropagation(ev);
+            L.DomEvent.preventDefault(ev);
+            
+            // Сбрасываем все режимы
+            resetAllModes();
+            
+            // Активируем режим изменения типа
+            mode = 'changeType';
+            el.classList.add('active');
+            
+            // Показываем инструкцию
+            showNotification('🔴 Виділіть ціль, тип якої хочете змінити');
+        });
+        return el;
+    }
+});
+
+const UndoDeleteControl=L.Control.extend({options:{position:'topleft'},onAdd(){
+    const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom');
+    el.innerHTML='↶';el.title='Відміна видалення';
+    L.DomEvent.on(el,'click',function(ev) {
+        L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
+        undoDelete();
+    });
+    return el;
+}});
+
+const TrajAllControl=L.Control.extend({options:{position:'topleft'},onAdd(){
+    const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom');
+    el.innerHTML='📈';el.title='Показати/Приховати всі траєкторії';
+    L.DomEvent.on(el,'click',ev=>{
+        L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
+        const isActive = el.classList.toggle('active');
+        showAllTrajectories = isActive;
+        if (!showSelectedTrajectoryMode) {
+            targets.forEach(t => {
+                if(t._polyline){
+                    if(showAllTrajectories) {
+                        if(!map.hasLayer(t._polyline)) map.addLayer(t._polyline);
+                    } else {
+                        if(map.hasLayer(t._polyline)) map.removeLayer(t._polyline);
+                    }
+                }
+            });
+        }
+    });return el;
+}});
+
+const TrajSelControl=L.Control.extend({options:{position:'topleft'},onAdd(){
+    const el=L.DomUtil.create('div','leaflet-control leaflet-control-custom');
+    el.innerHTML='🔍';el.title='Показати траєкторію вибраної цілі';
+    L.DomEvent.on(el,'click',function(ev) {
+        L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
+        toggleSelectedTrajectory();
+    });
+    return el;
+}});
+
+// ОЧИСТКА ПРЕВЬЮ
+clearPreview();
+
+/* === Новая кнопка для показа/скрытия названий === */
+const LabelsControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd: function() {
+        const el = L.DomUtil.create('div', 'leaflet-control leaflet-control-custom');
+        el.innerHTML = '🏷️';
+        el.title = 'Показати/Приховати назви цілей';
+        L.DomEvent.on(el, 'click', function(ev) {
+            L.DomEvent.stopPropagation(ev);
+            L.DomEvent.preventDefault(ev);
+            toggleLabelsVisibility();
+        });
+        return el;
+    }
+});
+
+/* === Контрол телепорта === */
+const TeleportControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd() {
+        const el = L.DomUtil.create('div', 'leaflet-control leaflet-control-custom');
+        el.innerHTML = '🚀';
+        el.title = 'Телепорт цілі';
+        L.DomEvent.on(el, 'click', function(ev) {
+            L.DomEvent.stopPropagation(ev);
+            L.DomEvent.preventDefault(ev);
+            startTeleportMode();
+        });
+        return el;
+    }
+});
+
+// Добавляем все контролы в правильном порядке
+map.addControl(new ToggleControlsButton());    // 📚 - первая
+map.addControl(new AddControl());              // ➕
+map.addControl(new QuickTrajectoryControl());  // 🎯
+map.addControl(new CalculateDistanceControl());// 📏
+map.addControl(new CourseControl());           // 🧭
+map.addControl(new SpeedControl());            // ⚡
+map.addControl(new DeleteControl());           // 🗑️
+map.addControl(new ChangeTypeControl());       // ♻️
+map.addControl(new UndoDeleteControl());       // ↶
+map.addControl(new TrajAllControl());          // 📈
+map.addControl(new TrajSelControl());          // 🔍
+map.addControl(new LabelsControl());           // 🏷️
+map.addControl(new TeleportControl());         // 🚀 - ТЕПЕРЬ В САМОМ КОНЦЕ
+
+const toggleControlsBtn = document.querySelector('.leaflet-control-custom:nth-of-type(1)');
+const addControlEl = document.querySelector('.leaflet-control-custom:nth-of-type(2)');
+const quickTrajectoryBtn = document.querySelector('.leaflet-control-custom:nth-of-type(3)');
+const calculateDistanceBtn = document.querySelector('.leaflet-control-custom:nth-of-type(4)');
+const courseControlEl = document.querySelector('.leaflet-control-custom:nth-of-type(5)');
+const speedControlEl = document.querySelector('.leaflet-control-custom:nth-of-type(6)');
+const deleteControlEl = document.querySelector('.leaflet-control-custom:nth-of-type(7)');
+const changeTypeBtn = document.querySelector('.leaflet-control-custom:nth-of-type(8)');
+const undoDeleteBtn = document.querySelector('.leaflet-control-custom:nth-of-type(9)');
+const trajAllEl = document.querySelector('.leaflet-control-custom:nth-of-type(10)');
+const trajSelEl = document.querySelector('.leaflet-control-custom:nth-of-type(11)');
+const labelsBtn = document.querySelector('.leaflet-control-custom:nth-of-type(12)');
+const teleportBtn = document.querySelector('.leaflet-control-custom:nth-of-type(13)'); // ТЕПЕРЬ ПОСЛЕДНЯЯ
+
+// Функция переключения видимости названий
+function toggleLabelsVisibility() {
+    showAllLabels = !showAllLabels;
+    const labelsBtn = document.querySelector('.leaflet-control-custom:nth-of-type(10)');
+    
+    if (showAllLabels) {
+        labelsBtn.classList.remove('active');
+        labelsBtn.style.background = 'white';
+    } else {
+        labelsBtn.classList.add('active');
+        labelsBtn.style.background = '#cce5ff';
+    }
+    
+    targets.forEach(target => {
+        if (target._label) {
+            if (showAllLabels) {
+                target._label.getElement().style.display = 'block';
+            } else {
+                target._label.getElement().style.display = 'none';
+            }
+        }
+    });
+}
+
+function createTarget(positionLatLng, bearingDeg) {
+    const marker = L.marker(positionLatLng, { 
+        icon: createTargetIcon(selectedIcon, bearingDeg, selectedIconColor, selectedIconSize)
+    }).addTo(map);
+    
+    marker._course = bearingDeg;
+    marker._speedKmph = selectedSpeed || 0;
+    marker._moving = marker._speedKmph > 0;
+    marker._currentPos = positionLatLng;
+    marker._iconPath = selectedIcon;
+    marker._name = selectedTargetName || 'Ціль';
+    marker._iconColor = selectedIconColor;
+    marker._iconSize = selectedIconSize;
+    marker._isThreat = false;
+
+    const label = L.divIcon({
+        className: 'target-label',
+        html: `<div>${marker._name}</div>`,
+        iconSize: [25, 15],
+        iconAnchor: [15, -15]
+    });
+    
+    const labelMarker = L.marker(positionLatLng, { 
+        icon: label,
+        interactive: false 
+    }).addTo(map);
+    
+    marker._label = labelMarker;
+
+    if (!showAllLabels) {
+        labelMarker.getElement().style.display = 'none';
+    }
+
+    const polyline = L.polyline([positionLatLng], getPolylineOptions());
+    marker._polyline = polyline;
+    if (showAllTrajectories && !showSelectedTrajectoryMode) polyline.addTo(map);
+
+    marker.on('click', createTargetClickHandler(marker));
+
+    targets.push(marker);
+    saveTargetsToStorage();
+    
+    // ВАЖНО: Очищаем превью после создания цели
+    clearPreview();
+}
+
+/* === Обработчик кликов по карте === */
+map.on('click', function(e) {
+    // Обработчики для инструментов редактирования (должны быть ПЕРВЫМИ)
+    if (rulerActive) {
+        handleRulerClick(e);
+        return; // Прерываем выполнение других обработчиков
+    }
+
+    if (drawMode) {
+        handleDrawingClick(e);
+        return; // Прерываем выполнение других обработчиков
+    }
+
+    // Остальные обработчики
+    if (calculateDistanceMode && selectedTarget) {
+        const popupContent = createDistancePopup(
+            selectedTarget.getLatLng(),
+            e.latlng,
+            selectedTarget
+        );
+        
+        if (distanceMarker) {
+            map.removeLayer(distanceMarker);
+        }
+        
+        distanceMarker = L.marker(e.latlng)
+            .addTo(map)
+            .bindPopup(popupContent)
+            .openPopup();
+        
+        return;
+    }
+    
+    if (quickTrajectoryMode && selectedTarget) {
+        quickTrajectoryPoints.push(e.latlng);
+        if (quickTrajectoryPolyline) {
+            quickTrajectoryPolyline.setLatLngs(quickTrajectoryPoints);
+        }
+        return;
+    }
+    
+    if(mode === 'add'){
+        if(!firstClickLatLng){
+            firstClickLatLng = e.latlng;
+            // Убедимся что старая метка превью удалена
+            if (previewMarker) {
+                map.removeLayer(previewMarker);
+            }
+            previewMarker = L.marker(firstClickLatLng, {
+                icon: L.divIcon({
+                    className: 'preview-icon',
+                    html: '📍',
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8]
+                }),
+                interactive: false
+            }).addTo(map);
+        } else {
+            const bearing = bearingDegrees(firstClickLatLng, e.latlng);
+            createTarget(firstClickLatLng, bearing);
+            // clearPreview() теперь вызывается внутри createTarget()
+        }
+    } else if(mode === 'course' && selectedTarget){
+        const newBearing = bearingDegrees(selectedTarget.getLatLng(), e.latlng);
+        selectedTarget._course = newBearing;
+        updateTargetIcon(selectedTarget, newBearing);
+        saveTargetsToStorage();
+    }
+});
+
+/* === Menu bindings === */
+document.querySelectorAll('.icon-item').forEach(item => {
+    item.addEventListener('click', () => {
+        selectedIcon = item.dataset.icon;
+        
+        // ВСЕГДА сбрасываем название и скорость при выборе нового типа цели
+        selectedTargetName = item.dataset.name || 'Ціль';
+        selectedSpeed = parseInt(item.dataset.speed) || 0;
+        
+        // Обновляем поля ввода
+        document.getElementById('targetNameInput').value = selectedTargetName;
+        document.getElementById('speedInput').value = selectedSpeed;
+        
+        document.querySelectorAll('.icon-item').forEach(i => i.style.background = '');
+        item.style.background = '#e3f2fd';
+        updateIconPreview();
+    });
+});
+
+document.getElementById('speedInput').addEventListener('input',e=>{selectedSpeed=Math.min(parseFloat(e.target.value)||0,100000);});
+document.getElementById('targetNameInput').addEventListener('input', function(e) {
+    selectedTargetName = e.target.value.trim();
+});
+
+// Обработчики для новых настроек иконок
+document.getElementById('iconColorInput').addEventListener('input', function(e) {
+    selectedIconColor = e.target.value;
+    updateIconPreview();
+    // Обновляем ВСЕ цели на карте
+    updateAllTargetsIcons();
+});
+
+document.getElementById('iconSizeInput').addEventListener('input', function(e) {
+    selectedIconSize = Math.max(10, Math.min(50, parseInt(e.target.value) || 20));
+    updateIconPreview();
+    // Обновляем ВСЕ цели на карте
+    updateAllTargetsIcons();
+});
+
+// Обработчики для настроек угрозы
+const threatModeBtn = document.getElementById('threatModeBtn');
+const movementModeBtn = document.getElementById('movementModeBtn');
+// Обработчик для кнопки изменения радиуса
+document.getElementById('changeThreatRadiusBtn').addEventListener('click', changeThreatRadius);
+const threatRadiusInput = document.getElementById('threatRadiusInput');
+
+threatModeBtn.addEventListener('click', function() {
+    threatMode = !threatMode;
+    if (threatMode) {
+        threatModeBtn.classList.add('active');
+        movementMode = false;
+        movementModeBtn.classList.remove('active');
+        mode = null;
+        document.querySelectorAll('.leaflet-control-custom').forEach(el => {
+            el.classList.remove('active');
+        });
+    } else {
+        threatModeBtn.classList.remove('active');
+    }
+});
+
+movementModeBtn.addEventListener('click', function() {
+    movementMode = !movementMode;
+    if (movementMode) {
+        movementModeBtn.classList.add('active');
+        threatMode = false;
+        threatModeBtn.classList.remove('active');
+        mode = null;
+        document.querySelectorAll('.leaflet-control-custom').forEach(el => {
+            el.classList.remove('active');
+        });
+    } else {
+        movementModeBtn.classList.remove('active');
+    }
+});
+
+threatRadiusInput.addEventListener('input', function(e) {
+    threatRadius = Math.max(1, Math.min(1000, parseInt(e.target.value) || 10));
+    // Обновляем круги у всех целей в режиме угрозы
+    targets.forEach(target => {
+        if (target._isThreat && target._threatCircle) {
+            createThreatCircle(target);
+        }
+    });
+});
+
+const toggleMenu=document.getElementById('toggleMenu');
+const iconMenu=document.getElementById('iconMenu');
+toggleMenu.onclick=()=>{iconMenu.style.display=(iconMenu.style.display==='none'?'flex':'none');};
+
+const trajSolidBtn = document.getElementById('trajSolidBtn');
+const trajDashBtn = document.getElementById('trajDashBtn');
+const trajColor = document.getElementById('trajColor');
+const trajWidth = document.getElementById('trajWidth');
+const trajOpacity = document.getElementById('trajOpacity');
+
+trajSolidBtn.addEventListener('click', ()=>{
+    trajSettings.dash = false;
+    trajSolidBtn.classList.add('active');
+    trajDashBtn.classList.remove('active');
+    updateAllPolylinesStyle();
+});
+trajDashBtn.addEventListener('click', ()=>{
+    trajSettings.dash = true;
+    trajDashBtn.classList.add('active');
+    trajSolidBtn.classList.remove('active');
+    updateAllPolylinesStyle();
+});
+trajColor.addEventListener('input', ()=>{ trajSettings.color = trajColor.value; updateAllPolylinesStyle(); });
+trajWidth.addEventListener('input', ()=>{ trajSettings.weight = Math.max(1, Math.min(10, parseInt(trajWidth.value)||2)); updateAllPolylinesStyle(); });
+trajOpacity.addEventListener('input', ()=>{ trajSettings.opacity = Math.max(0, Math.min(1, parseFloat(trajOpacity.value)||0.9)); updateAllPolylinesStyle(); });
+
+function updateAllPolylinesStyle(){
+    targets.forEach(t=>{
+        if(t._polyline){
+            const opts = getPolylineOptions();
+            t._polyline.setStyle(opts);
+        }
+    });
+}
+
+// Обработчик для глобального радиуса
+document.getElementById('threatRadiusInput').addEventListener('input', function(e) {
+    threatRadius = Math.max(1, Math.min(1000, parseInt(e.target.value) || 10));
+    // Обновляем круги только у целей без индивидуального радиуса
+    targets.forEach(target => {
+        if (target._isThreat && target._threatCircle && !target._threatRadius) {
+            createThreatCircle(target);
+        }
+    });
+});
+
+/* === Movement loop === */
+const MOVE_TICK_MS = 100;
+function metersToLat(m){return m/111320;}
+function metersToLng(m,lat){return m/(111320*Math.cos(lat*Math.PI/180));}
+
+setInterval(() => {
+    if (!targets || targets.length === 0) return;
+    
+    const currentTime = Date.now();
+    const dt = (currentTime - lastUpdateTime) / 1000; // в секундах
+    lastUpdateTime = currentTime;
+    
+    // Если страница не активна, не обновляем визуально, но сохраняем состояние
+    if (!isPageVisible) {
+        calculateOfflineMovement(dt);
+        return;
+    }
+    
+    targets.forEach(m => {
+        if (!m._moving || m._speedKmph <= 0 || m._isThreat) return;
+        
+        const speedMs = (m._speedKmph * 1000) / 3600;
+        const dist = speedMs * dt;
+        const theta = m._course * Math.PI / 180;
+        const dy = Math.cos(theta) * dist;
+        const dx = Math.sin(theta) * dist;
+        const pos = m.getLatLng(); // Получаем актуальную позицию маркера
+        
+        const newLat = pos.lat + metersToLat(dy);
+        const newLng = pos.lng + metersToLng(dx, pos.lat);
+        
+        const newPos = L.latLng(newLat, newLng);
+        
+        // ОБНОВЛЯЕМ ОБЕ ПОЗИЦИИ СИНХРОННО
+        m._currentPos = newPos;
+        m.setLatLng(newPos); // Важно: обновляем визуальную позицию маркера
+
+        if (m._polyline) {
+            m._polyline.addLatLng(newPos);
+            if (!showAllTrajectories && map.hasLayer(m._polyline) && !showSelectedTrajectoryMode) {
+                map.removeLayer(m._polyline);
+            }
+        }
+        
+        if (m._label) {
+            m._label.setLatLng(newPos);
+        }
+        
+        if (m._isThreat && m._threatCircle) {
+            m._threatCircle.setLatLng(newPos);
+        }
+    });
+}, MOVE_TICK_MS);
+
+/* === AUTOSAVE === */
+setInterval(() => {
+    if (targets.length > 0) {
+        saveTargetsToStorage();
+    }
+}, 1000);
+
+/* === LOAD TARGETS ON PAGE LOAD === */
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(loadTargetsFromStorage, 100);
+    updateIconPreview();
+    initGoogleSearch();
+    initChangeTypeModal();
+    
+    // Инициализация телепорта
+    const teleportModal = document.getElementById('teleportModal');
+    if (!teleportModal) {
+        console.error('Teleport modal not found!');
+    } else {
+        console.log('Teleport modal initialized successfully');
+    }
+    
+    // Принудительная синхронизация позиций после загрузки
+    setTimeout(() => {
+        targets.forEach(m => {
+            if (m._currentPos && m.getLatLng()) {
+                // Если есть рассинхронизация - исправляем
+                const currentLatLng = m.getLatLng();
+                const storedLatLng = m._currentPos;
+                
+                if (currentLatLng.lat !== storedLatLng.lat || currentLatLng.lng !== storedLatLng.lng) {
+                    console.log(`Синхронізація позиції для ${m._name}`);
+                    m.setLatLng(storedLatLng);
+                    if (m._label) m._label.setLatLng(storedLatLng);
+                }
+            }
+        });
+    }, 100);
+});
+
+// Функция поиска через Nominatim (OpenStreetMap)
+function searchPlaces(query) {
+    const searchResults = document.getElementById('searchResults');
+    
+    // Очищаем предыдущие результаты
+    searchResults.innerHTML = '';
+    searchResults.style.display = 'block';
+    searchResults.innerHTML = '<div class="search-result-item">Пошук...</div>';
+    
+    // Nominatim API - бесплатный, без ограничений
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Україна')}&limit=10&accept-language=uk`;
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            searchResults.innerHTML = '';
+            
+            if (data && data.length > 0) {
+                displaySearchResults(data);
+            } else {
+                searchResults.innerHTML = '<div class="search-result-item">Нічого не знайдено</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Search error:', error);
+            searchResults.innerHTML = '<div class="search-result-item">Помилка зʼєднання</div>';
+        });
+}
+
+// Обновите функцию отображения результатов
+function displaySearchResults(places) {
+    const searchResults = document.getElementById('searchResults');
+    searchResults.innerHTML = '';
+    
+    places.forEach(place => {
+        const item = document.createElement('div');
+        item.className = 'search-result-item';
+        
+        // Определяем тип места для лучшего отображения
+        let type = '';
+        if (place.type === 'city' || place.type === 'town') {
+            type = 'Місто';
+        } else if (place.type === 'village') {
+            type = 'Село';
+        } else if (place.type === 'hamlet') {
+            type = 'Хутір';
+        } else {
+            type = place.type || 'Населений пункт';
+        }
+        
+        item.innerHTML = `
+            <div style="font-weight: bold;">${place.display_name.split(',')[0]}</div>
+            <div style="font-size: 12px; color: #666;">${type} • ${place.display_name.split(',').slice(1, 3).join(',')}</div>
+        `;
+        
+        item.addEventListener('click', () => {
+            selectPlace(place);
+        });
+        
+        searchResults.appendChild(item);
+    });
+}
+
+// Обновите функцию выбора места
+function selectPlace(place) {
+    const searchInput = document.getElementById('searchInput');
+    const searchResults = document.getElementById('searchResults');
+    
+    searchResults.style.display = 'none';
+    searchInput.value = place.display_name.split(',')[0];
+    
+    // Центрируем карту на выбранном месте
+    const latLng = L.latLng(parseFloat(place.lat), parseFloat(place.lon));
+    map.setView(latLng, 12);
+    
+    // Добавляем маркер
+    const marker = L.marker(latLng)
+        .addTo(map)
+        .bindPopup(`
+            <div style="text-align: center;">
+                <strong>${place.display_name.split(',')[0]}</strong><br>
+                <small>${place.display_name.split(',').slice(1, 3).join(',')}</small>
+            </div>
+        `)
+        .openPopup();
+    
+    // Автоматически убираем маркер через 3 секунды
+    setTimeout(() => {
+        if (map.hasLayer(marker)) {
+            map.removeLayer(marker);
+        }
+    }, 3000);
+}
+
+function deleteTarget(marker) {
+    // Сохраняем данные для возможного восстановления
+    const targetData = {
+        position: marker.getLatLng(),
+        icon: marker._iconPath,
+        course: marker._course,
+        color: marker._iconColor,
+        size: marker._iconSize,
+        trajectory: marker._polyline ? marker._polyline.getLatLngs() : [],
+        properties: {
+            _course: marker._course,
+            _speedKmph: marker._speedKmph,
+            _moving: marker._moving,
+            _currentPos: marker._currentPos,
+            _iconPath: marker._iconPath,
+            _name: marker._name,
+            _iconColor: marker._iconColor,
+            _iconSize: marker._iconSize,
+            _isThreat: marker._isThreat,
+            _originalSpeed: marker._originalSpeed,
+            _threatRadius: marker._threatRadius
+        }
+    };
+    
+    deletedTargets.push(targetData);
+    
+    // Удаляем с карты
+    if (marker._polyline && map.hasLayer(marker._polyline)) {
+        map.removeLayer(marker._polyline);
+    }
+    if (marker._label && map.hasLayer(marker._label)) {
+        map.removeLayer(marker._label);
+    }
+    if (marker._threatCircle && map.hasLayer(marker._threatCircle)) {
+        map.removeLayer(marker._threatCircle);
+    }
+    
+    // Удаляем из массива
+    const idx = targets.indexOf(marker);
+    if (idx !== -1) {
+        targets.splice(idx, 1);
+    }
+    
+    // Удаляем маркер
+    if (map.hasLayer(marker)) {
+        map.removeLayer(marker);
+    }
+    
+    saveTargetsToStorage();
+}
+
+function changeTargetSpeed(marker) {
+    const newSpeed = prompt("Введіть нову швидкість (км/год):", marker._speedKmph);
+    if (newSpeed !== null) {
+        const sp = parseFloat(newSpeed);
+        if (!isNaN(sp)) {
+            marker._speedKmph = Math.max(0, Math.min(sp, 100000));
+            marker._moving = marker._speedKmph > 0;
+            saveTargetsToStorage();
+            
+            // Сбрасываем выделение
+            if (marker.getElement()) {
+                marker.getElement().style.filter = '';
+            }
+            selectedTarget = null;
+        }
+    } else {
+        // Сбрасываем выделение если отменили ввод
+        if (marker.getElement()) {
+            marker.getElement().style.filter = '';
+        }
+        selectedTarget = null;
+    }
+}
+
+function resetAllModes() {
+    mode = null;
+    calculateDistanceMode = false;
+    quickTrajectoryMode = false;
+    showSelectedTrajectoryMode = false;
+    threatMode = false;
+    movementMode = false;
+    rulerActive = false;
+    drawMode = false;
+    teleportMode = false;
+    
+    // Сбрасываем подсветку ВСЕХ кнопок
+    document.querySelectorAll('.leaflet-control-custom').forEach(ctrl => {
+        ctrl.classList.remove('active');
+    });
+    document.getElementById('rulerBtn').classList.remove('active');
+    document.getElementById('drawBtn').classList.remove('active');
+    document.getElementById('editToolsBtn').classList.remove('active');
+    
+    // Сбрасываем подсветку кнопки телепорта
+    if (teleportBtn) teleportBtn.classList.remove('active');
+    
+    // Скрываем подменю редактирования
+    editSubmenu.style.display = 'none';
+    
+    // Сбрасываем выделение цели
+    if (selectedTarget && selectedTarget.getElement()) {
+        selectedTarget.getElement().style.filter = '';
+    }
+    selectedTarget = null;
+    
+    // Сбрасываем выделение телепорта
+    if (teleportTarget && teleportTarget.getElement()) {
+        teleportTarget.getElement().style.filter = '';
+    }
+    teleportTarget = null;
+    
+    // Очищаем временные данные
+    clearPreview();
+    quickTrajectoryPoints = [];
+    if (quickTrajectoryPolyline) {
+        map.removeLayer(quickTrajectoryPolyline);
+        quickTrajectoryPolyline = null;
+    }
+    if (distanceMarker) {
+        map.removeLayer(distanceMarker);
+        distanceMarker = null;
+    }
+    
+    // Очищаем инструменты редактирования
+    clearDrawTools();
+    rulerPoints = [];
+    if (rulerLine) {
+        map.removeLayer(rulerLine);
+        rulerLine = null;
+    }
+    if (rulerPopup) {
+        map.closePopup(rulerPopup);
+        rulerPopup = null;
+    }
+    
+    map.getContainer().style.cursor = '';
+}
+
+function resetCreationMode() {
+    if (mode === 'add') {
+        clearPreview();
+    }
+}
+
+// переменные
+let lastUpdateTime = Date.now();
+let isPageVisible = true;
+
+function loadTargetsFromStorage() {
+    const saved = localStorage.getItem('mapTargets');
+    const lastSaveTime = localStorage.getItem('lastSaveTime');
+    
+    if (saved) {
+        try {
+            const data = JSON.parse(saved);
+            const currentTime = Date.now();
+            const savedTime = lastSaveTime ? parseInt(lastSaveTime) : currentTime;
+            const timeDiff = (currentTime - savedTime) / 1000; // разница в секундах
+            
+            data.forEach(targetData => {
+                let position = L.latLng(targetData.lat, targetData.lng);
+                
+                // Если цель двигалась и прошло время, рассчитываем новую позицию
+                if (!targetData.isThreat && targetData.speed > 0 && timeDiff > 0) {
+                    position = calculateNewPosition(
+                        position, 
+                        targetData.course, 
+                        targetData.speed, 
+                        timeDiff
+                    );
+                }
+                
+                restoreTarget(
+                    position, 
+                    targetData.course, 
+                    targetData.speed, 
+                    targetData.icon, 
+                    targetData.trajectory, 
+                    targetData.name || 'Ціль',
+                    targetData.color || '#000000',
+                    targetData.size || 20,
+                    targetData.isThreat || false,
+                    targetData.originalSpeed || null,
+                    targetData.threatRadius || null
+                );
+            });
+            
+            console.log(`Завантажено ${data.length} цілей, оновлено позиції за ${timeDiff.toFixed(1)} сек`);
+            
+            // ПРИНУДИТЕЛЬНАЯ СИНХРОНИЗАЦИЯ ПОСЛЕ ЗАГРУЗКИ
+            setTimeout(() => {
+                targets.forEach(m => {
+                    if (m._currentPos && m.getLatLng()) {
+                        // Если есть рассинхронизация - исправляем
+                        const currentLatLng = m.getLatLng();
+                        const storedLatLng = m._currentPos;
+                        
+                        if (currentLatLng.lat !== storedLatLng.lat || currentLatLng.lng !== storedLatLng.lng) {
+                            console.log(`Синхронізація позиції для ${m._name}`);
+                            m.setLatLng(storedLatLng);
+                            if (m._label) m._label.setLatLng(storedLatLng);
+                        }
+                    }
+                });
+            }, 100);
+            
+        } catch (e) {
+            console.error('Помилка відновлення цілей:', e);
+        }
+    }
+}
+
+function calculateNewPosition(startPos, bearing, speedKmph, timeSeconds) {
+    if (speedKmph <= 0) return startPos;
+    
+    const speedMs = (speedKmph * 1000) / 3600;
+    const distance = speedMs * timeSeconds;
+    const theta = bearing * Math.PI / 180;
+    
+    const dy = Math.cos(theta) * distance;
+    const dx = Math.sin(theta) * distance;
+    
+    const newLat = startPos.lat + metersToLat(dy);
+    const newLng = startPos.lng + metersToLng(dx, startPos.lat);
+    
+    return L.latLng(newLat, newLng);
+}
+
+function metersToLat(m) {
+    return m / 111320;
+}
+
+function metersToLng(m, lat) {
+    return m / (111320 * Math.cos(lat * Math.PI / 180));
+}
+
+function calculateOfflineMovement(dt) {
+    let hasChanges = false;
+    
+    targets.forEach(m => {
+        if (!m._moving || m._speedKmph <= 0 || m._isThreat) return;
+        
+        const speedMs = (m._speedKmph * 1000) / 3600;
+        const dist = speedMs * dt;
+        const theta = m._course * Math.PI / 180;
+        const dy = Math.cos(theta) * dist;
+        const dx = Math.sin(theta) * dist;
+        const pos = m._currentPos;
+        const newLat = pos.lat + metersToLat(dy);
+        const newLng = pos.lng + metersToLng(dx, pos.lat);
+        
+        const newPos = L.latLng(newLat, newLng);
+        m._currentPos = newPos;
+        
+        // Обновляем траекторию
+        if (m._polyline) {
+            const currentPoints = m._polyline.getLatLngs();
+            currentPoints.push(newPos);
+            m._polyline.setLatLngs(currentPoints);
+        }
+        
+        hasChanges = true;
+    });
+    
+    if (hasChanges) {
+        saveTargetsToStorage();
+    }
+}
+
+// Отслеживаем когда страница становится невидимой/видимой
+document.addEventListener('visibilitychange', function() {
+    isPageVisible = !document.hidden;
+    lastUpdateTime = Date.now();
+    
+    if (isPageVisible) {
+        // При возвращении на страницу обновляем позиции маркеров
+        targets.forEach(m => {
+            m.setLatLng(m._currentPos);
+            if (m._label) m._label.setLatLng(m._currentPos);
+            if (m._threatCircle) m._threatCircle.setLatLng(m._currentPos);
+            if (m._polyline) {
+                // Обновляем полилинию если нужно
+                const currentPoints = m._polyline.getLatLngs();
+                if (currentPoints.length > 0) {
+                    currentPoints[currentPoints.length - 1] = m._currentPos;
+                    m._polyline.setLatLngs(currentPoints);
+                }
+            }
+        });
+    }
+});
+
+// Также отслеживаем события когда страница минимизирована/восстановлена
+window.addEventListener('blur', function() {
+    isPageVisible = false;
+});
+
+window.addEventListener('focus', function() {
+    isPageVisible = true;
+    lastUpdateTime = Date.now();
+});
+
+// Автосохранение каждую 1 секунду
+setInterval(() => {
+    if (targets.length > 0) {
+        saveTargetsToStorage();
+    }
+}, 1000);
+
+// Также сохраняем при закрытии страницы
+window.addEventListener('beforeunload', function() {
+    saveTargetsToStorage();
+});
+
+function syncAllTargetsPositions() {
+    targets.forEach(m => {
+        if (m._currentPos) {
+            const currentMarkerPos = m.getLatLng();
+            if (currentMarkerPos.lat !== m._currentPos.lat || currentMarkerPos.lng !== m._currentPos.lng) {
+                console.log(`Синхронізація: ${m._name}`);
+                m.setLatLng(m._currentPos);
+                if (m._label) m._label.setLatLng(m._currentPos);
+                if (m._threatCircle) m._threatCircle.setLatLng(m._currentPos);
+            }
+        }
+    });
+}
+
+// Запускаем синхронизацию каждые 3 секунды на всякий случай
+setInterval(syncAllTargetsPositions, 3000);
+
+/* === Подменю редактирования === */
+const editBtn = document.getElementById('editToolsBtn');
+const editSubmenu = document.getElementById('editSubmenu');
+const rulerBtn = document.getElementById('rulerBtn');
+const drawBtn = document.getElementById('drawBtn');
+
+editBtn.addEventListener('click', () => {
+    const isVisible = editSubmenu.style.display === 'flex';
+    
+    if (isVisible) {
+        // Закрываем меню и деактивируем все режимы
+        editSubmenu.style.display = 'none';
+        editBtn.classList.remove('active');
+        deactivateEditModes();
+    } else {
+        // Открываем меню
+        editSubmenu.style.display = 'flex';
+        editBtn.classList.add('active');
+        
+        // Сбрасываем подсветку кнопок в подменю
+        rulerBtn.classList.remove('active');
+        drawBtn.classList.remove('active');
+    }
+});
+
+// Функция деактивации всех режимов редактирования
+function deactivateEditModes() {
+    // Деактивируем линейку
+    rulerActive = false;
+    rulerBtn.classList.remove('active');
+    rulerPoints = [];
+    if (rulerLine) { 
+        map.removeLayer(rulerLine); 
+        rulerLine = null; 
+    }
+    if (rulerPopup) { 
+        map.closePopup(rulerPopup); 
+        rulerPopup = null; 
+    }
+    
+    // Деактивируем рисование
+    drawMode = false;
+    drawBtn.classList.remove('active');
+    clearDrawTools();
+    
+    // Сбрасываем курсор
+    map.getContainer().style.cursor = '';
+}
+
+// Функция очистки инструментов рисования
+function clearDrawTools() {
+    drawPoints = [];
+    drawMarkers.forEach(m => map.removeLayer(m));
+    drawMarkers = [];
+    if (drawLine) { 
+        map.removeLayer(drawLine); 
+        drawLine = null; 
+    }
+    segmentLabels.forEach(l => map.removeLayer(l));
+    segmentLabels = [];
+    if (totalDistanceLabel) { 
+        map.closePopup(totalDistanceLabel); 
+        totalDistanceLabel = null; 
+    }
+}
+
+/* === Режим линейки === */
+function activateRuler() {
+    // Сбрасываем все другие режимы
+    resetAllModes();
+    deactivateEditModes();
+    
+    rulerActive = !rulerActive;
+    rulerBtn.classList.toggle('active', rulerActive);
+
+    // сбрасываем старые данные
+    rulerPoints = [];
+    if (rulerLine) { 
+        map.removeLayer(rulerLine); 
+        rulerLine = null; 
+    }
+    if (rulerPopup) { 
+        map.closePopup(rulerPopup); 
+        rulerPopup = null; 
+    }
+
+    map.getContainer().style.cursor = rulerActive ? 'crosshair' : '';
+    
+    // Если выключаем линейку, сбрасываем точки
+    if (!rulerActive) {
+        rulerPoints = [];
+    }
+}
+
+/* === Режим рисования === */
+function activateDrawing() {
+    // Сбрасываем все другие режимы
+    resetAllModes();
+    deactivateEditModes();
+    
+    drawMode = !drawMode;
+    drawBtn.classList.toggle('active', drawMode);
+
+    if (!drawMode) {
+        clearDrawTools();
+        map.getContainer().style.cursor = '';
+    } else {
+        map.getContainer().style.cursor = 'crosshair';
+    }
+}
+
+// Обработчики кликов для кнопок редактирования
+rulerBtn.addEventListener('click', activateRuler);
+drawBtn.addEventListener('click', activateDrawing);
+
+// Обработчик кликов для линейки
+function handleRulerClick(e) {
+    if (!rulerActive) return;
+
+    rulerPoints.push(e.latlng);
+    
+    // Рисуем линию между точками
+    if (rulerPoints.length >= 2) {
+        if (rulerLine) {
+            map.removeLayer(rulerLine);
+        }
+        rulerLine = L.polyline(rulerPoints, {color: 'red', weight: 3}).addTo(map);
+    }
+    
+    // Показываем расстояние когда есть 2 точки
+    if (rulerPoints.length === 2) {
+        const d = calculateDistanceKm(rulerPoints[0], rulerPoints[1]);
+        if (rulerPopup) {
+            map.closePopup(rulerPopup);
+        }
+        rulerPopup = L.popup()
+            .setLatLng(rulerPoints[1])
+            .setContent(`📏 Відстань: ${d.toFixed(2)} км`)
+            .openOn(map);
+    }
+}
+
+// Обработчик кликов для рисования
+function handleDrawingClick(e) {
+    if (!drawMode) return;
+
+    const point = e.latlng;
+    drawPoints.push(point);
+
+    const marker = L.marker(point, { draggable: true }).addTo(map);
+    drawMarkers.push(marker);
+
+    marker.on('drag', updateDrawLine);
+
+    updateDrawLine();
+}
+
+// Функция обновления линии рисования
+function updateDrawLine() {
+    // удаляем старые линии и подписи
+    if (drawLine) map.removeLayer(drawLine);
+    segmentLabels.forEach(l => map.removeLayer(l));
+    segmentLabels = [];
+
+    drawPoints = drawMarkers.map(m => m.getLatLng());
+    if (drawPoints.length > 1) {
+        drawLine = L.polyline(drawPoints, { color: 'blue', weight: 2 }).addTo(map);
+    }
+
+    // промежуточные расстояния
+    drawPoints.forEach((pt, i) => {
+        if (i === 0) return;
+        const d = calculateDistanceKm(drawPoints[i-1], drawPoints[i]);
+        const mid = L.latLng(
+            (drawPoints[i-1].lat + drawPoints[i].lat) / 2,
+            (drawPoints[i-1].lng + drawPoints[i].lng) / 2
+        );
+        const label = L.marker(mid, {
+            icon: L.divIcon({
+                className: 'distance-label',
+                html: `<div style="background:white;padding:2px 4px;border-radius:4px;border:1px solid #aaa;font-size:10px;">${d.toFixed(2)} км</div>`,
+            }),
+            interactive: false
+        }).addTo(map);
+        segmentLabels.push(label);
+    });
+
+    // общее расстояние
+    const total = drawPoints.reduce((acc, pt, i) => {
+        if (i === 0) return 0;
+        return acc + calculateDistanceKm(drawPoints[i-1], pt);
+    }, 0);
+
+    if (totalDistanceLabel) map.closePopup(totalDistanceLabel);
+    if (drawPoints.length > 0) {
+        totalDistanceLabel = L.popup()
+            .setLatLng(drawPoints[drawPoints.length - 1])
+            .setContent(`🧶 Всього: ${total.toFixed(2)} км`)
+            .openOn(map);
+    }
+}
+
+function showNotification(message) {
+    // Создаем временное уведомление
+    const notification = L.popup()
+        .setLatLng(map.getCenter())
+        .setContent(`<div style="text-align:center;">${message}</div>`)
+        .openOn(map);
+    
+    // Автоматически закрываем через 2 секунды
+    setTimeout(() => {
+        map.closePopup(notification);
+    }, 2000);
+}
+
+/* === Модальное окно изменения типа цели === */
+let changeTypeModal = document.getElementById('changeTypeModal');
+let modalOverlay = document.getElementById('modalOverlay');
+let selectedTargetForChange = null;
+let selectedNewIcon = null;
+
+// Инициализация модального окна
+function initChangeTypeModal() {
+    const iconGrid = changeTypeModal.querySelector('.icon-grid');
+    
+    // Копируем иконки из основного меню
+    const originalIcons = document.querySelectorAll('.icon-item');
+    iconGrid.innerHTML = '';
+    
+    originalIcons.forEach(icon => {
+        const iconClone = icon.cloneNode(true);
+        iconClone.addEventListener('click', function() {
+            // Снимаем выделение со всех иконок
+            iconGrid.querySelectorAll('.icon-item').forEach(i => {
+                i.style.background = '';
+            });
+            // Выделяем выбранную иконку
+            this.style.background = '#e3f2fd';
+            selectedNewIcon = {
+                icon: this.dataset.icon,
+                name: this.dataset.name,
+                speed: parseInt(this.dataset.speed) || 0
+            };
+        });
+        iconGrid.appendChild(iconClone);
+    });
+    
+    // Обработчики кнопок модального окна
+    document.getElementById('closeChangeTypeModal').addEventListener('click', closeChangeTypeModal);
+    document.getElementById('cancelChangeType').addEventListener('click', closeChangeTypeModal);
+    document.getElementById('confirmChangeType').addEventListener('click', confirmChangeType);
+    
+    // Закрытие по клику на overlay
+    modalOverlay.addEventListener('click', closeChangeTypeModal);
+}
+
+function openChangeTypeModal(target) {
+    selectedTargetForChange = target;
+    selectedNewIcon = null;
+    
+    // Обновляем информацию о выбранной цели
+    document.getElementById('selectedTargetName').textContent = target._name;
+    
+    // Сбрасываем выделение иконок
+    changeTypeModal.querySelectorAll('.icon-item').forEach(i => {
+        i.style.background = '';
+    });
+    
+    // Показываем модальное окно - используем block вместо flex
+    changeTypeModal.style.display = 'block';
+    modalOverlay.style.display = 'block';
+    
+    // Останавливаем события чтобы не кликалось под модальным окном
+    map.getContainer().style.pointerEvents = 'none';
+}
+
+function closeChangeTypeModal() {
+    changeTypeModal.style.display = 'none';
+    modalOverlay.style.display = 'none';
+    
+    // Восстанавливаем события на карте
+    map.getContainer().style.pointerEvents = 'auto';
+    
+    // УБИРАЕМ ВЫДЕЛЕНИЕ при отмене
+    if (selectedTargetForChange && selectedTargetForChange.getElement()) {
+        selectedTargetForChange.getElement().style.filter = '';
+    }
+    
+    selectedTargetForChange = null;
+    selectedNewIcon = null;
+    
+    // Сбрасываем режим при закрытии модального окна
+    mode = null;
+    selectedTarget = null;
+}
+
+function confirmChangeType() {
+    if (!selectedTargetForChange || !selectedNewIcon) {
+        showNotification('❌ Виберіть новий тип цілі');
+        return;
+    }
+    
+    // Применяем изменения
+    selectedTargetForChange._iconPath = selectedNewIcon.icon;
+    selectedTargetForChange._name = selectedNewIcon.name;
+    selectedTargetForChange._speedKmph = selectedNewIcon.speed;
+    selectedTargetForChange._moving = selectedNewIcon.speed > 0;
+    
+    // Обновляем иконку
+    updateTargetIcon(selectedTargetForChange);
+    
+    // Обновляем метку
+    if (selectedTargetForChange._label && selectedTargetForChange._label.getElement()) {
+        selectedTargetForChange._label.getElement().innerHTML = `<div>${selectedTargetForChange._name}</div>`;
+    }
+    
+    // УБИРАЕМ ВЫДЕЛЕНИЕ с цели
+    if (selectedTargetForChange.getElement()) {
+        selectedTargetForChange.getElement().style.filter = '';
+    }
+    
+    // Сохраняем изменения
+    saveTargetsToStorage();
+    
+    showNotification(`✅ Тип цілі змінено на: ${selectedNewIcon.name}`);
+    closeChangeTypeModal();
+    
+    // Сбрасываем режим
+    mode = null;
+    selectedTarget = null;
+    document.querySelectorAll('.leaflet-control-custom').forEach(ctrl => {
+        ctrl.classList.remove('active');
+    });
+}
+
+/* === Функции телепорта === */
+function startTeleportMode() {
+    resetAllModes();
+    
+    teleportMode = !teleportMode;
+    teleportBtn.classList.toggle('active', teleportMode);
+    
+    if (teleportMode) {
+        showNotification('🔴 Виділіть ціль для телепорту');
+    } else {
+        if (teleportTarget && teleportTarget.getElement()) {
+            teleportTarget.getElement().style.filter = '';
+        }
+        teleportTarget = null;
+    }
+}
+
+function openTeleportModal(target) {
+    teleportTarget = target;
+    
+    // Обновляем информацию о цели
+    document.getElementById('teleportTargetName').textContent = target._name;
+    
+    // Сбрасываем время
+    document.getElementById('teleportMinutes').value = 0;
+    document.getElementById('teleportSeconds').value = 0;
+    
+    // Устанавливаем режим по умолчанию
+    document.getElementById('teleportMoveMode').classList.add('active');
+    document.getElementById('teleportStopMode').classList.remove('active');
+    
+    // Показываем модальное окно
+    teleportModal.style.display = 'block';
+    modalOverlay.style.display = 'block';
+    
+    map.getContainer().style.pointerEvents = 'none';
+}
+
+function closeTeleportModal() {
+    teleportModal.style.display = 'none';
+    modalOverlay.style.display = 'none';
+    
+    map.getContainer().style.pointerEvents = 'auto';
+    
+    // Сбрасываем выделение
+    if (teleportTarget && teleportTarget.getElement()) {
+        teleportTarget.getElement().style.filter = '';
+    }
+    
+    // Сбрасываем режим
+    teleportMode = false;
+    teleportBtn.classList.remove('active');
+    teleportTarget = null;
+}
+
+function applyTeleport() {
+    if (!teleportTarget) {
+        showNotification('❌ Ціль не вибрана');
+        return;
+    }
+    
+    const minutes = parseInt(document.getElementById('teleportMinutes').value) || 0;
+    const seconds = parseInt(document.getElementById('teleportSeconds').value) || 0;
+    const totalSeconds = minutes * 60 + seconds;
+    
+    if (totalSeconds <= 0) {
+        showNotification('❌ Введіть час телепорту');
+        return;
+    }
+    
+    // Определяем режим после телепорта
+    const moveAfterTeleport = document.getElementById('teleportMoveMode').classList.contains('active');
+    
+    // Рассчитываем новую позицию
+    const newPosition = calculateFuturePosition(teleportTarget, totalSeconds);
+    
+    // Телепортируем цель
+    teleportTargetTo(teleportTarget, newPosition, moveAfterTeleport);
+    
+    showNotification(`✅ Ціль телепортована на ${minutes} хв ${seconds} сек вперед`);
+    closeTeleportModal();
+}
+
+function calculateFuturePosition(target, timeSeconds) {
+    if (target._speedKmph <= 0 || timeSeconds <= 0) {
+        return target.getLatLng();
+    }
+    
+    const speedMs = (target._speedKmph * 1000) / 3600;
+    const distance = speedMs * timeSeconds;
+    const theta = target._course * Math.PI / 180;
+    
+    const dy = Math.cos(theta) * distance;
+    const dx = Math.sin(theta) * distance;
+    const currentPos = target.getLatLng();
+    
+    const newLat = currentPos.lat + metersToLat(dy);
+    const newLng = currentPos.lng + metersToLng(dx, currentPos.lat);
+    
+    return L.latLng(newLat, newLng);
+}
+
+function teleportTargetTo(target, newPosition, moveAfterTeleport = true) {
+    const oldPosition = target.getLatLng();
+    
+    // Обновляем позицию маркера
+    target.setLatLng(newPosition);
+    target._currentPos = newPosition;
+    
+    // Обновляем метку
+    if (target._label) {
+        target._label.setLatLng(newPosition);
+    }
+    
+    // Обновляем круг угрозы
+    if (target._isThreat && target._threatCircle) {
+        target._threatCircle.setLatLng(newPosition);
+    }
+    
+    // Обновляем траекторию - добавляем точку телепорта
+    if (target._polyline) {
+        const currentPoints = target._polyline.getLatLngs();
+        
+        // Добавляем разрыв в траектории для визуального обозначения телепорта
+        if (currentPoints.length > 0) {
+            const lastPoint = currentPoints[currentPoints.length - 1];
+            currentPoints.push(lastPoint); // Дублируем последнюю точку для разрыва
+        }
+        
+        currentPoints.push(newPosition);
+        target._polyline.setLatLngs(currentPoints);
+    }
+    
+    // Устанавливаем режим движения после телепорта
+    if (!moveAfterTeleport) {
+        const originalSpeed = target._speedKmph;
+        target._speedKmph = 0;
+        target._moving = false;
+        
+        // Показываем уведомление об остановке
+        setTimeout(() => {
+            showNotification(`🛑 Ціль "${target._name}" зупинена після телепорту`);
+        }, 1000);
+    }
+    
+    saveTargetsToStorage();
+    
+    // Показываем линию телепорта временно
+    const teleportLine = L.polyline([oldPosition, newPosition], {
+        color: '#ff00ff',
+        weight: 3,
+        opacity: 0.7,
+        dashArray: '10,5'
+    }).addTo(map);
+    
+    // Убираем линию через 3 секунды
+    setTimeout(() => {
+        if (map.hasLayer(teleportLine)) {
+            map.removeLayer(teleportLine);
+        }
+    }, 3000);
+}
+</script>
+</body>
+</html>
